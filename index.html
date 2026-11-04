@@ -910,12 +910,13 @@ function paraHTML(p){
   const {cov, er} = coverage(p);
   const st = paraStatus(p, cov);
   let html = '', i = 0, maxN = 0; const L = p.x.length;
-  const keyAt = k => `${cov[k]}|${er[k]}|${t === 'd' && k < p.inf.d0 ? 1 : 0}|${countable(p, k) && cov[k] < DONE_AT ? 1 : 0}`;
+  const blinkAt = k => cov[k] >= 1 && cov[k] < DONE_AT && !/\s/.test(p.x[k]);   // 点滅は線が1〜2本の文字だけ
+  const keyAt = k => `${cov[k]}|${er[k]}|${t === 'd' && k < p.inf.d0 ? 1 : 0}|${blinkAt(k) ? 1 : 0}`;
   while (i < L){
     const key = keyAt(i); let j = i + 1;
     while (j < L && keyAt(j) === key) j++;
     const n = cov[i]; maxN = Math.max(maxN, n);
-    const cls = ['sg']; if (er[i]) cls.push('er'); if (t === 'd' && i < p.inf.d0) cls.push('spk'); if (countable(p, i) && n < DONE_AT) cls.push('pend');
+    const cls = ['sg']; if (er[i]) cls.push('er'); if (t === 'd' && i < p.inf.d0) cls.push('spk'); if (blinkAt(i)) cls.push('pend');
     html += `<span class="${cls.join(' ')}"${n ? ` data-n="${n}" style="${markStyle(n)}"` : ''}>${esc(p.x.slice(i, j))}</span>`;
     i = j;
   }
