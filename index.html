@@ -77,6 +77,12 @@ button{cursor:pointer}
 .home-head h1{margin:0;font-size:22px;font-weight:500}
 .home-head p{margin:2px 0 0;color:var(--muted);font-size:13px}
 .home-actions{display:flex;flex-wrap:wrap;gap:8px}
+.gdoc{background:#fff;border:1px solid var(--rule);border-radius:12px;padding:14px 16px;display:grid;gap:8px}
+.gdoc label{display:flex;align-items:center;gap:8px;font-weight:500;font-size:14px}
+.gdoc-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.gdoc input{min-height:40px;border:1px solid var(--rule);border-radius:8px;padding:0 12px;font-size:15px;min-width:0}
+.gdoc input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 1px var(--accent)}
+.gdoc-hint{font-size:12px;color:var(--muted)}
 .drop{border:1.5px dashed var(--rule);border-radius:12px;padding:16px;text-align:center;color:var(--muted);font-size:13px;background:#fff}
 .drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
 .cards{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
@@ -724,6 +730,11 @@ async function renderHome(){
     ${local ? `<div class="notice">共同編集サーバーに接続できないため、この端末内だけに保存しています。</div>` : ''}
     <div class="home-head"><div><h1>台本</h1><p>開く台本を選ぶか、新しく取り込みます。</p></div>
       <div class="home-actions"><button class="btn" id="sampleBtn" type="button">サンプル台本を作成</button><button class="btn primary" id="importBtn" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12m0-12-4 4m4-4 4 4M5 20h14"/></svg>台本を取り込む</button></div></div>
+    <form class="gdoc" id="gdocForm" autocomplete="off">
+      <label for="gdocUrl"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path fill="#A1C2FA" d="M14 2v6h6z"/><path fill="#fff" d="M8 12h8v1.5H8zm0 3h8v1.5H8zm0 3h5v1.5H8z"/></svg>GoogleドキュメントのURLから取り込む</label>
+      <div class="gdoc-row"><input id="gdocUrl" type="url" inputmode="url" placeholder="https://docs.google.com/document/d/…/edit" spellcheck="false"><button class="btn primary" type="submit" id="gdocBtn">読み込む</button></div>
+      <span class="gdoc-hint">ドキュメントの共有設定を「リンクを知っている全員(閲覧者)」にしてから貼ってください。</span>
+    </form>
     <div class="drop" id="drop">PDF・Word(.docx)・テキストファイルをここにドロップしても取り込めます</div>
     ${!state.scriptsReady ? `<div class="loading">台本の一覧を読み込み中…</div>` : list.length ? `<ul class="cards">${cards}</ul>` :
       `<div class="empty"><p>まだ台本がありません。</p><button class="btn primary" id="importBtn2" type="button">台本を取り込む</button></div>`}
@@ -751,6 +762,39 @@ document.addEventListener('drop', e => {
   const d = $('#drop'); d && d.classList.remove('over');
   const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) handleFile(f);
 });
+view.addEventListener('submit', e => {
+  if (e.target.id !== 'gdocForm') return;
+  e.preventDefault(); importGdoc($('#gdocUrl').value);
+});
+/* GoogleドキュメントのURL → 本文(Google Drive API。Firebase の API キーを使う) */
+async function importGdoc(url){
+  const m = /\/document\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]{20,})/.exec(url || '') || /[?&]id=([A-Za-z0-9_-]{20,})/.exec(url || '');
+  if (!m){ toast('GoogleドキュメントのURLを貼ってください(docs.google.com/document/d/… の形)', {err:true, ms:7000}); return; }
+  if (!FIREBASE_CONFIG){ toast('この画面ではGoogleドキュメントを読み込めません。配布用のURL版で使ってください。', {err:true, ms:7000}); return; }
+  const id = m[1], key = FIREBASE_CONFIG.apiKey, btn = $('#gdocBtn');
+  btn.disabled = true; btn.textContent = '読み込み中…';
+  try {
+    const api = 'https://www.googleapis.com/drive/v3/files/' + id;
+    const [r1, r2] = await Promise.all([fetch(`${api}/export?mimeType=text/plain&key=${key}`), fetch(`${api}?fields=name&key=${key}`)]);
+    if (!r1.ok){
+      let reason = '', msg = '';
+      try { const j = await r1.json(); msg = (j.error && j.error.message) || ''; reason = ((j.error && j.error.errors && j.error.errors[0]) || {}).reason || (j.error && j.error.status) || ''; } catch(_){}
+      if (r1.status === 404) throw new Error('ドキュメントが見つかりません。共有設定を「リンクを知っている全員」にしてください。');
+      if (/accessNotConfigured|SERVICE_DISABLED|has not been used/i.test(reason + msg)) throw new Error('Google Drive API がまだ有効になっていません(管理者の設定が必要です)。');
+      if (/API_KEY_SERVICE_BLOCKED|blocked/i.test(reason + msg)) throw new Error('APIキーで Google Drive API が許可されていません(管理者の設定が必要です)。');
+      if (r1.status === 403) throw new Error('読み込みを許可されていません。共有設定を「リンクを知っている全員」にしてください。');
+      throw new Error('読み込めませんでした(' + r1.status + ')。');
+    }
+    const text = await r1.text();
+    let title = 'Googleドキュメント';
+    try { if (r2.ok) title = (await r2.json()).name || title; } catch(_){}
+    const lines = parseScript(text);
+    if (!lines.some(l => l.x)) throw new Error('ドキュメントに本文が見つかりませんでした。');
+    $('#gdocUrl').value = '';
+    showImportPreview(title, lines, 'gdoc');
+  } catch(err){ toast(err.message || '読み込みに失敗しました', {err:true, ms:9000}); }
+  finally { btn.disabled = false; btn.textContent = '読み込む'; }
+}
 $('#fileInput').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) handleFile(f); });
 
 async function handleFile(file){
@@ -1132,7 +1176,7 @@ function openTakeDlg(s){
   placeNear(dlg, s.rect, true);
   const inp = $('#dlgFile'); inp.value = suggestFile(); inp.focus(); inp.select();
   dlg.onclick = e => { const b = e.target.closest('[data-d]'); if (!b) return; if (b.dataset.d === 'ok') commitTake(s); else cancelDlg(); };
-  dlg.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing){ e.preventDefault(); commitTake(s); } if (e.key === 'Escape'){ e.preventDefault(); cancelDlg(); } };
+  dlg.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229){ e.preventDefault(); commitTake(s); } if (e.key === 'Escape'){ e.preventDefault(); cancelDlg(); } };
 }
 function cancelDlg(){ closeDlg(); window.getSelection().removeAllRanges(); if (state.deferred) renderDoc(false); }
 function commitTake(s){
@@ -1157,7 +1201,7 @@ function openErrDlg(s){
   if (ts.length) $('#dlgTake').value = ts[0].id;
   ghost(s.range); placeNear(dlg, s.rect, true); $('#dlgSaid').focus();
   dlg.onclick = e => { const b = e.target.closest('[data-d]'); if (!b) return; if (b.dataset.d === 'ok') commitErr(s); else cancelDlg(); };
-  dlg.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing && e.target.tagName === 'INPUT'){ e.preventDefault(); commitErr(s); } if (e.key === 'Escape'){ e.preventDefault(); cancelDlg(); } };
+  dlg.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229 && e.target.id !== 'dlgSaid' && e.target.tagName === 'INPUT'){ e.preventDefault(); commitErr(s); } if (e.key === 'Escape'){ e.preventDefault(); cancelDlg(); } };
 }
 function commitErr(s){
   const data = {segs:s.segs, said:($('#dlgSaid').value || '').trim().slice(0, 200), takeId:$('#dlgTake').value || '', at:Date.now(), by:state.uid, dev:DEVICE};
@@ -1276,7 +1320,7 @@ $('#mpop').addEventListener('click', e => {
     setTimeout(reopenMpop, 30);
   }
 });
-$('#mpop').addEventListener('keydown', e => { if (e.target.id === 'mpFile'){ if (e.key === 'Enter' && !e.isComposing){ e.preventDefault(); saveFileEdit(); } if (e.key === 'Escape'){ state.editFile = null; reopenMpop(); } } });
+$('#mpop').addEventListener('keydown', e => { if (e.target.id === 'mpFile'){ if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229){ e.preventDefault(); saveFileEdit(); } if (e.key === 'Escape'){ state.editFile = null; reopenMpop(); } } });
 function reopenMpop(){ const a = state.mpopAt; if (a) openListPop(a.ctx, a.rect); }
 function saveFileEdit(){
   const id = state.editFile; state.editFile = null;
@@ -1517,7 +1561,7 @@ $('#titleIn').addEventListener('change', async e => {
   if (!state.sid || !v || v === state.meta.title) return;
   try { await state.store.updateScript(state.sid, {title:v}); } catch(_){ toast('タイトルを保存できませんでした', {err:true}); }
 });
-$('#titleIn').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); e.target.blur(); } });
+$('#titleIn').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229){ e.preventDefault(); e.target.blur(); } });
 function buildCSV(){
   const q = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
   const rows = [['行', 'シーン', '役名', 'セリフ', '状態', '最少テイク数', 'ファイル名', 'セリフ間違い'].map(q).join(',')];
@@ -1660,7 +1704,6 @@ function askName(force){
     try { await state.user.setName(v); } catch(_){}
   };
   $('#nmOk', m).onclick = ok;
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing){ e.preventDefault(); ok(); } });
   m.parentElement.onmousedown = null;
 }
 
