@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIGIS スクリプト</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230B57D0'/%3E%3Ccircle cx='16' cy='20.5' r='7.6' fill='none' stroke='%23F3C64B' stroke-width='2.6'/%3E%3Cpath d='M11 8.4 13.2 5.5h5.6L21 8.4 16 13.4z' fill='%23D3E3FD' stroke='%23ffffff' stroke-width='1' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Shippori+Mincho:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* Googleドキュメント風: 薄いグレーの作業面に白いページ。上にツールバー、右に撮影履歴(コメント欄の位置)。ライトテーマ固定 */
+:root{
+  --bg:#F9FBFD; --surface:#FFFFFF; --chrome:#EDF2FA; --ink:#1F1F1F; --muted:#5F6368; --rule:#DADCE0;
+  --accent:#0B57D0; --accent-ink:#FFFFFF; --accent-soft:#D3E3FD; --hover:rgba(68,71,70,.08);
+  --red:#D93025; --ok:#188038; --warn:#E37400;
+  --f-ui:"Noto Sans JP","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
+  --f-script:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  --top-h:60px;
+  color-scheme:light;
+}
+@property --bk{syntax:'<number>';inherits:true;initial-value:1}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.6;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none !important}
+
+/* ---------- top bar ---------- */
+.top{position:sticky;top:0;z-index:30;height:var(--top-h);display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--bg)}
+.brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;flex:none}
+.logo{display:grid;place-items:center;width:36px;height:36px;border-radius:9px;background:var(--accent)}
+.logo svg{width:30px;height:30px;color:#F3C64B}
+.brand .name{font-size:18px;line-height:1.1;letter-spacing:.02em}
+.brand .name b{font-weight:500}
+.title-in{min-width:0;flex:1;max-width:520px;font-size:18px;border:1px solid transparent;border-radius:6px;background:transparent;padding:3px 8px;text-overflow:ellipsis}
+.title-in:hover{border-color:var(--rule)}
+.title-in:focus{border-color:var(--accent);outline:none;background:#fff}
+.flex1{flex:1}
+.top-right{display:flex;align-items:center;gap:10px;flex:none}
+.peers{display:flex;align-items:center;border:0;background:none;padding:2px 4px;border-radius:999px}
+.peers:hover{background:var(--hover)}
+.av{width:30px;height:30px;border-radius:50%;border:2px solid var(--bg);background:var(--rule);object-fit:cover;display:block}
+.peers .av+.av,.peers .more{margin-left:-8px}
+.peers .more{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--rule);border:2px solid var(--bg)}
+.sync{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap}
+.sync .dot{width:8px;height:8px;border-radius:50%;background:#9AA0A6}
+.sync.ok .dot{background:var(--ok)}
+.sync.warn{color:var(--warn)} .sync.warn .dot{background:var(--warn)}
+.popover{position:fixed;z-index:60;top:calc(var(--top-h) + 4px);right:12px;width:min(340px,calc(100vw - 24px));background:#fff;border-radius:12px;box-shadow:0 2px 6px 2px rgba(60,64,67,.15),0 1px 2px rgba(60,64,67,.3);padding:12px}
+.popover h3{margin:0 0 8px;font-size:13px;color:var(--muted);font-weight:500}
+.plist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.plist li{display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center}
+.plist .av{width:32px;height:32px;border:0}
+.plist .nm{font-weight:500;font-size:14px;line-height:1.3}
+.plist .sub{font-size:12px;color:var(--muted);line-height:1.3}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;padding:1px 8px;border-radius:999px;background:var(--chrome);white-space:nowrap}
+.pill.on{color:var(--ok);background:#E6F4EA} .pill.idle{color:var(--muted)}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:0 16px;border-radius:999px;border:1px solid var(--rule);background:#fff;font-weight:500;font-size:14px;white-space:nowrap;color:var(--accent)}
+.btn:hover{background:#F6F9FE}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:#0A4DBA}
+.btn.text{border-color:transparent;background:transparent}
+.btn.text:hover{background:var(--hover)}
+.btn.small{min-height:28px;padding:0 10px;font-size:12.5px}
+.btn.danger{color:var(--red)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.icon{width:18px;height:18px;flex:none}
+
+/* ---------- home ---------- */
+.home{max-width:1000px;margin:0 auto;padding:20px 16px 60px;display:grid;gap:18px}
+.home-head{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px}
+.home-head h1{margin:0;font-size:22px;font-weight:500}
+.home-head p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.home-actions{display:flex;flex-wrap:wrap;gap:8px}
+.drop{border:1.5px dashed var(--rule);border-radius:12px;padding:16px;text-align:center;color:var(--muted);font-size:13px;background:#fff}
+.drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.cards{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+.card{background:#fff;border:1px solid var(--rule);border-radius:8px;overflow:hidden;cursor:pointer;display:grid}
+.card:hover{border-color:var(--accent)}
+.thumb{height:150px;background:var(--bg);border-bottom:1px solid var(--rule);padding:14px 18px 0;overflow:hidden}
+.thumb div{background:#fff;height:100%;box-shadow:0 1px 3px rgba(60,64,67,.2);padding:10px 12px;font-family:var(--f-script);font-size:8.5px;line-height:1.7;color:#444;white-space:pre-wrap;overflow:hidden}
+.card .cb{padding:10px 12px 10px;display:grid;gap:4px}
+.card h2{margin:0;font-size:14px;font-weight:500;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .meta{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.card .meta .av{width:18px;height:18px;border:0}
+.card .foot{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.empty{background:#fff;border:1px solid var(--rule);border-radius:12px;padding:28px 18px;text-align:center;display:grid;gap:10px;justify-items:center}
+.empty p{margin:0;color:var(--muted)}
+.notice{background:#FEF7E0;border:1px solid #F9E3A6;border-radius:8px;padding:10px 14px;font-size:13px}
+.loading{padding:60px 16px;text-align:center;color:var(--muted)}
+
+/* ---------- toolbar ---------- */
+.tbar{position:sticky;top:var(--top-h);z-index:25;margin:0 12px;background:var(--chrome);border-radius:24px;min-height:42px;display:flex;align-items:center;gap:2px;padding:3px 8px;overflow-x:auto;scrollbar-width:none}
+.tbar::-webkit-scrollbar{display:none}
+.tb{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:0;border-radius:6px;background:none;font-size:13px;color:var(--ink);white-space:nowrap}
+.tb:hover{background:var(--hover)}
+.tb[aria-pressed="true"]{background:var(--accent-soft);color:#041E49}
+.tb:disabled{opacity:.4;cursor:default}
+.tb .u{font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;font-family:Arial,sans-serif;font-size:15px}
+.tb .eicon{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:4px;background:var(--red);color:#fff;font-size:10.5px;font-weight:700}
+.sep{width:1px;height:20px;background:#C7C7C7;margin:0 6px;flex:none}
+.prog{display:flex;align-items:center;gap:8px;padding:0 6px;font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.bar{width:110px;height:6px;border-radius:999px;background:#D7DBE0;overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.bar .b-done{background:var(--ok)} .bar .b-part{background:var(--warn)}
+.prog b{color:var(--ink);font-size:13px}
+
+/* ---------- document ---------- */
+.work{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:0;align-items:start}
+.canvas{min-width:0;padding:18px 12px 120px;overflow-x:hidden}
+.page{max-width:816px;margin:0 auto;background:#fff;border:1px solid #E1E3E1;box-shadow:0 1px 3px rgba(60,64,67,.08);min-height:900px;padding:64px 72px 96px}
+.edit-hint{max-width:816px;margin:0 auto 10px;background:#E8F0FE;color:#174EA6;border-radius:8px;padding:8px 14px;font-size:12.5px}
+.paper{font-family:var(--f-script);font-size:var(--fs,17px);color:#1F1F1F;position:relative}
+.paper ::selection{background:#B4D3FB}
+::highlight(aigis-sel){background-color:#C9DDFB}
+.p{position:relative;padding:2px 0 2px 0;margin:0}
+.p::before{content:"";position:absolute;left:-22px;top:.55em;bottom:.55em;width:3px;border-radius:2px;background:transparent}
+.p.st-none::before{background:#E8A49F} .p.st-part::before{background:#F6C26B} .p.st-done::before{background:#7CC495}
+.pt{white-space:pre-wrap;overflow-wrap:anywhere;line-height:calc(1.95em + var(--n,0) * 6px);min-height:1.95em}
+.t-s .pt{font-family:var(--f-ui);font-weight:700;font-size:.92em;margin-top:.9em}
+.t-a .pt{padding-left:2.2em;color:#3C4043}
+.t-d .pt{padding-left:0}
+.spk{font-family:var(--f-ui);font-weight:700;font-size:.9em}
+.sg{-webkit-box-decoration-break:clone;box-decoration-break:clone;background-repeat:no-repeat}
+.paper.blinking .pend{color:rgba(217,48,37,var(--bk))}
+.paper.blinking{animation:bk 1.8s ease-in-out infinite alternate}
+@keyframes bk{from{--bk:1}to{--bk:.15}}
+.er{text-decoration:underline wavy var(--red) 1.5px;text-underline-offset:.3em;text-decoration-skip-ink:none}
+.p.flash{animation:flash 1.6s ease-out}
+@keyframes flash{0%{background:rgba(11,87,208,.18)}100%{background:transparent}}
+.paper.editing .pt{outline:none;border-radius:3px;cursor:text}
+.paper.editing .pt:hover{background:#F8FAFD}
+.paper.editing .pt:focus{background:#F1F6FE;box-shadow:0 0 0 1px #C2D7F7}
+.ptags{position:absolute;right:-56px;top:.25em;display:flex;gap:2px;user-select:none;-webkit-user-select:none}
+.ptag{height:18px;min-width:18px;padding:0 5px;border-radius:999px;font-family:var(--f-ui);font-size:10.5px;font-weight:700;color:#fff;display:grid;place-items:center}
+.addp{margin-top:18px}
+@media (prefers-reduced-motion: reduce){ .paper.blinking{animation:none} .p.flash{animation:none} }
+
+/* ---------- selection bar / dialogs ---------- */
+.selbar{position:fixed;z-index:50;display:flex;gap:2px;background:#fff;border-radius:10px;padding:4px;box-shadow:0 2px 6px 2px rgba(60,64,67,.15),0 1px 2px rgba(60,64,67,.3)}
+.selbar button{display:inline-flex;align-items:center;gap:6px;border:0;background:none;border-radius:6px;height:36px;padding:0 12px;font-size:13.5px;font-weight:500;white-space:nowrap}
+.selbar button:hover{background:var(--hover)}
+.selbar .u{font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;font-family:Arial,sans-serif;color:var(--accent)}
+.selbar kbd,.kbd{font-family:var(--f-ui);font-size:11px;color:var(--muted);font-weight:400}
+.dlg{position:fixed;z-index:55;width:min(360px,calc(100vw - 16px));background:#fff;border-radius:12px;padding:14px;box-shadow:0 4px 8px 3px rgba(60,64,67,.15),0 1px 3px rgba(60,64,67,.3);display:grid;gap:10px}
+.dlg h3{margin:0;font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px}
+.dlg .quote{font-family:var(--f-script);font-size:14px;background:var(--bg);border-left:3px solid var(--accent);padding:4px 10px;border-radius:0 6px 6px 0;max-height:4.8em;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.dlg.err .quote{border-left-color:var(--red)}
+.dlg label{font-size:12px;color:var(--muted)}
+.dlg input,.dlg select{width:100%;min-height:44px;border:1px solid var(--rule);border-radius:8px;padding:0 12px;background:#fff;font-size:17px}
+.dlg input.file{font-size:20px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;font-variant-numeric:tabular-nums}
+.dlg input:focus,.dlg select:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 1px var(--accent)}
+.dlg .row{display:flex;justify-content:flex-end;gap:8px}
+.dlg .sub{font-size:12px;color:var(--muted)}
+.mpop{position:fixed;z-index:52;width:min(340px,calc(100vw - 16px));background:#fff;border-radius:12px;padding:10px;box-shadow:0 2px 6px 2px rgba(60,64,67,.15),0 1px 2px rgba(60,64,67,.3);display:grid;gap:6px;max-height:60vh;overflow:auto}
+.mpop h4{margin:2px 4px;font-size:12px;color:var(--muted);font-weight:500}
+.mrow{display:grid;grid-template-columns:auto 1fr auto;gap:2px 10px;align-items:center;padding:6px 6px;border-radius:8px}
+.mrow:hover{background:var(--bg)}
+.mrow.hi{background:#E8F0FE}
+.mrow .cut{grid-column:2 / 4;justify-self:start;min-height:24px;padding:0 6px;font-size:12px}
+.sg[data-n]{cursor:text}
+.sw{display:block;width:24px;height:8px;border-radius:2px}
+.mrow .f{font-weight:700;font-size:15px;letter-spacing:.03em;overflow-wrap:anywhere}
+.mrow .f.none{font-weight:400;color:var(--muted);font-size:13px}
+.mrow .w{grid-column:2 / 4;font-size:11.5px;color:var(--muted)}
+.mrow .tn{font-size:11px;color:var(--muted);text-align:center}
+.mrow .acts{display:flex;gap:2px}
+.mrow.err .f{font-weight:500;font-size:13.5px}
+.mrow input{min-height:34px;border:1px solid var(--accent);border-radius:6px;padding:0 8px;font-weight:700;text-transform:uppercase;width:100%}
+.wrong{text-decoration:underline wavy var(--red) 1.5px;text-underline-offset:3px}
+
+/* ---------- history (comments column) ---------- */
+.hist{position:sticky;top:calc(var(--top-h) + 52px);max-height:calc(100vh - var(--top-h) - 64px);max-height:calc(100dvh - var(--top-h) - 64px);overflow:auto;padding:18px 16px 40px 4px;display:grid;gap:8px;align-content:start}
+.hist h2{margin:0 0 2px;font-size:13px;font-weight:500;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+.hcard{background:#fff;border-radius:8px;padding:10px 12px;box-shadow:0 1px 2px rgba(60,64,67,.3),0 1px 3px 1px rgba(60,64,67,.15);display:grid;gap:4px;cursor:pointer;font-size:13px}
+.hcard:hover{box-shadow:0 1px 3px rgba(60,64,67,.3),0 4px 8px 3px rgba(60,64,67,.15)}
+.hcard .hh{display:flex;align-items:center;gap:8px}
+.hcard .hh .av{width:22px;height:22px;border:0}
+.hcard .who{font-weight:500;font-size:12.5px}
+.hcard .when{font-size:11.5px;color:var(--muted)}
+.hcard .file{font-weight:700;font-size:15px;letter-spacing:.03em}
+.hcard .q{font-family:var(--f-script);color:#3C4043;font-size:13px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.hcard.err{border-left:3px solid var(--red)}
+.hcard.pending{outline:1px dashed var(--warn)}
+.hempty{font-size:12.5px;color:var(--muted);display:grid;gap:8px;padding:4px 2px}
+.legend{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;align-items:center;font-size:12px}
+
+/* ---------- modal / toast ---------- */
+.modal-back{position:fixed;inset:0;z-index:80;background:rgba(32,33,36,.45);display:grid;place-items:center;padding:16px}
+.modal{background:#fff;border-radius:16px;width:min(720px,100%);max-height:calc(100dvh - 32px);display:flex;flex-direction:column;box-shadow:0 4px 8px 3px rgba(60,64,67,.15)}
+.modal header{padding:18px 20px 8px}
+.modal header h2{margin:0;font-size:18px;font-weight:500}
+.modal header p{margin:4px 0 0;font-size:12.5px;color:var(--muted)}
+.modal .body{padding:8px 20px 14px;overflow:auto;display:grid;gap:12px}
+.modal footer{padding:12px 20px 16px;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.field{display:grid;gap:4px}
+.field label{font-size:12px;color:var(--muted)}
+.field input[type=text]{min-height:42px;border:1px solid var(--rule);border-radius:8px;padding:0 12px;font-size:16px}
+.stats{display:flex;flex-wrap:wrap;gap:6px}
+.pv{border:1px solid var(--rule);border-radius:8px;font-family:var(--f-script);font-size:13.5px;max-height:44vh;overflow:auto;padding:12px 16px;white-space:pre-wrap;line-height:1.8}
+.pv .s{font-family:var(--f-ui);font-weight:700}
+.pv .d b{font-family:var(--f-ui)}
+.pv .a{padding-left:2em;color:#5F6368}
+.check{display:flex;align-items:center;gap:8px;font-size:13.5px}
+.csvbox{width:100%;min-height:180px;font-family:ui-monospace,Menlo,monospace;font-size:12px;border:1px solid var(--rule);border-radius:8px;background:var(--bg);padding:8px}
+#toasts{position:fixed;z-index:90;left:16px;bottom:16px;display:grid;gap:8px;width:min(440px,calc(100vw - 32px));pointer-events:none}
+.toast{pointer-events:auto;display:flex;align-items:center;gap:12px;background:#303030;color:#F2F2F2;border-radius:6px;padding:10px 10px 10px 16px;font-size:13.5px;box-shadow:0 3px 5px -1px rgba(0,0,0,.2),0 6px 10px rgba(0,0,0,.14)}
+.toast .msg{flex:1;min-width:0}
+.toast.err{background:#8C1D18}
+.toast button{border:0;background:none;color:#A8C7FA;border-radius:4px;padding:5px 8px;font-weight:500;font-size:13px}
+.toast button:hover{background:rgba(255,255,255,.08)}
+
+/* ---------- responsive ---------- */
+@media (max-width:1180px){
+  .work{display:block}
+  .hist{position:fixed;z-index:45;top:var(--top-h);right:0;bottom:0;width:min(340px,90vw);max-height:none;background:var(--bg);box-shadow:-4px 0 16px rgba(0,0,0,.12);padding:16px;transform:translateX(105%);transition:transform .2s}
+  .hist.open{transform:none}
+  .ptags{right:-14px;top:-12px}
+}
+@media (min-width:1181px){ #histBtn{display:none} .hist .closeh{display:none} }
+@media (max-width:760px){
+  :root{--top-h:54px}
+  .top{gap:8px;padding:0 10px}
+  .brand .name{display:none}
+  .title-in{font-size:16px}
+  .sync #syncText{display:none}
+  .tbar{margin:0 6px}
+  .tb .lbl{display:none}
+  .canvas{padding:10px 0 120px}
+  .page{border:0;box-shadow:none;padding:20px 18px 80px;min-height:0}
+  .p::before{left:-12px}
+  .t-a .pt{padding-left:1.2em}
+  .prog .bar{width:60px}
+  .edit-hint{margin:0 10px 8px}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#" id="homeLink" aria-label="AIGIS スクリプト ホーム">
+    <span class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="20.5" r="7.6" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M11 8.4 13.2 5.5h5.6L21 8.4 16 13.4z" fill="#D3E3FD" stroke="#fff" stroke-width="1" stroke-linejoin="round"/><path d="M11 8.4h10M13.2 5.5 16 13.4l2.8-7.9" fill="none" stroke="#fff" stroke-width=".7" stroke-linejoin="round" opacity=".85"/></svg></span>
+    <span class="name">AIGIS <b>スクリプト</b></span>
+  </a>
+  <input class="title-in" id="titleIn" aria-label="台本のタイトル" hidden maxlength="80">
+  <span class="flex1"></span>
+  <div class="top-right">
+    <button class="peers" id="peers" type="button" aria-label="参加者を表示" hidden></button>
+    <div class="sync" id="sync" role="status"><span class="dot"></span><span id="syncText">接続中…</span></div>
+  </div>
+</header>
+<main id="view"><div class="loading">読み込み中…</div></main>
+<div id="pop" class="popover" hidden></div>
+<div id="selbar" class="selbar" hidden role="toolbar" aria-label="選択した文字への操作">
+  <button type="button" data-sb="take"><span class="u">U</span>テイクを記録 <kbd>Ctrl+U</kbd></button>
+  <button type="button" data-sb="err"><span class="eicon" style="display:inline-grid;place-items:center;width:18px;height:18px;border-radius:4px;background:#D93025;color:#fff;font-size:10.5px;font-weight:700">誤</span>セリフ間違い</button>
+  <button type="button" data-sb="list" id="sbErase" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg>この範囲のテイク</button>
+</div>
+<div id="dlg" class="dlg" hidden role="dialog" aria-modal="false"></div>
+<div id="mpop" class="mpop" hidden role="dialog"></div>
+<div id="toasts" aria-live="polite"></div>
+<div id="modalRoot"></div>
+<input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt,.text,.md,.fountain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" hidden>
+
+<script>
+(() => {
+'use strict';
+
+/* =====================================================================
+   Constants & helpers
+   ===================================================================== */
+const DONE_AT = 3;                         // 3テイク以上で撮影完了
+const BAND = 5, GAP = 1;                   // アンダーラインの太さと間隔(px)
+const BASE_RGB = [[255,214,10],[255,120,190],[64,220,140],[70,180,255],[255,150,50],[170,130,255]];
+const IGN = /[\s「」『』、。，．,.…‥・！？!?（）()―─〜~"“”'’]/;   // 撮影判定・点滅の対象外の文字
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const MAMMOTH = 'https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js';
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function lsGet(k, d){ try{ const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }catch(_){ return d; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(_){ return false; } }
+function withTimeout(p, ms){ return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({code:'timeout'}), ms))]); }
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+
+/* テイク番号(0始まり) → 蛍光ペンの色。1〜6本目は固定色、7本目以降は黄金角で色相を回して自動生成 */
+function takeColor(i, a = .85){
+  if (i < BASE_RGB.length){ const [r,g,b] = BASE_RGB[i]; return `rgba(${r},${g},${b},${a})`; }
+  const h = Math.round((i * 137.508 + 52) % 360);
+  return `hsla(${h},92%,62%,${a})`;
+}
+function markStyle(n){
+  if (!n) return '';
+  const imgs = [], pos = [];
+  for (let i = 0; i < n; i++){ const c = takeColor(i); imgs.push(`linear-gradient(${c},${c})`); pos.push(`0 calc(100% - ${(n - 1 - i) * (BAND + GAP)}px)`); }
+  return `padding-bottom:${n * (BAND + GAP)}px;background-image:${imgs.join(',')};background-position:${pos.join(',')};background-size:${Array(n).fill('100% ' + BAND + 'px').join(',')}`;
+}
+function detectDevice(){
+  const ua = navigator.userAgent;
+  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'iPad';
+  if (/iPhone|iPod/.test(ua)) return 'iPhone';
+  if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'Android' : 'Androidタブレット';
+  return 'PC';
+}
+const DEVICE = detectDevice();
+function fmtTime(ms){
+  const d = new Date(ms), now = new Date();
+  const hm = d.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'});
+  return d.toDateString() === now.toDateString() ? hm : `${d.getMonth()+1}/${d.getDate()} ${hm}`;
+}
+function fmtDate(ms){ const d = new Date(ms); return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; }
+function nextFileName(prev){
+  if (!prev) return 'C0001';
+  const m = /^(.*?)(\d+)(\D*)$/.exec(prev);
+  if (!m) return prev;
+  return m[1] + String(parseInt(m[2], 10) + 1).padStart(m[2].length, '0') + m[3];
+}
+const normFile = s => String(s || '').trim().replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).toUpperCase().slice(0, 60);
+const clip = (s, n) => { s = String(s || '').replace(/\n/g, ' '); return s.length > n ? s.slice(0, n) + '…' : s; };
+
+/* =====================================================================
+   Script parser
+   ===================================================================== */
+const SCENE_RE = /^\s*(?:[○◯〇●■□◆◇#＃]|[SsＳｓ]\s*[#＃\-－]?\s*[0-9０-９]|シーン\s*[0-9０-９]|SCENE\b|INT\.|EXT\.|[0-9０-９]+\s*[\.．]\s*(?:INT|EXT))/i;
+const DLG_BRACKET = /^\s*([^\s「『：:（(]{1,12}(?:\s*[（(][^）)]{0,12}[）)])?)\s*([「『][\s\S]*)$/;
+const DLG_COLON = /^\s*([^\s「『：:（(]{1,10}(?:\s*[（(][^）)]{0,12}[）)])?)\s*[：:]\s*(\S[\s\S]*)$/;
+function closesBracket(s){ return (s.match(/[」』]/g) || []).length >= (s.match(/[「『]/g) || []).length; }
+/* 取り込み時: 原稿テキスト → 段落の配列 [{id, x}] (セリフの続き行は1段落にまとめる) */
+function parseScript(raw){
+  const src = String(raw || '').replace(/\r\n?/g, '\n').replace(/[​﻿]/g, '').split('\n');
+  const out = []; let open = null;
+  for (const rawLine of src){
+    const t = rawLine.replace(/[ \t　]+$/g, '').trim();
+    if (open){
+      if (!t) open = null;
+      else { open.x += '\n' + t; if (closesBracket(open.x)) open = null; continue; }
+    }
+    if (!t){ if (out.length && out[out.length-1].x !== '') out.push({x:''}); continue; }
+    if (/^[「『]/.test(t)){
+      const prev = out[out.length-1];
+      if (prev && prev.x && prev.x.length <= 12 && !/[。、！？!?「」]/.test(prev.x) && !SCENE_RE.test(prev.x)){ prev.x += t; if (!closesBracket(prev.x)) open = prev; continue; }
+    }
+    const p = {x:t}; out.push(p);
+    if (/[「『]/.test(t) && classify(t).type === 'd' && !closesBracket(t)) open = p;
+  }
+  while (out.length && out[out.length-1].x === '') out.pop();
+  while (out.length && out[0].x === '') out.shift();
+  out.forEach((l, i) => { l.id = 'L' + String(i + 1).padStart(4, '0'); });
+  return out;
+}
+/* 段落の種類(シーン / セリフ / ト書き / 空行)と、セリフ本文が始まる位置 d0 */
+function classify(x){
+  const t = x.trim();
+  if (!t) return {type:'b', d0:0, sp:''};
+  if (SCENE_RE.test(t) && t.length <= 80 && !t.includes('\n')) return {type:'s', d0:0, sp:''};
+  let m = DLG_BRACKET.exec(x);
+  if (m) return {type:'d', d0:x.length - m[2].length, sp:m[1].trim()};
+  if (/^\s*[「『]/.test(x)) return {type:'d', d0:x.search(/[「『]/), sp:''};
+  m = DLG_COLON.exec(x);
+  if (m && !/^\d/.test(m[1])) return {type:'d', d0:x.length - m[2].length, sp:m[1].trim()};
+  return {type:'a', d0:0, sp:''};
+}
+
+/* =====================================================================
+   File import
+   ===================================================================== */
+const loaded = {};
+function loadScript(src){
+  if (!loaded[src]) loaded[src] = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = src; s.onload = res;
+    s.onerror = () => { delete loaded[src]; rej(new Error('ライブラリを読み込めませんでした。通信状態を確認してください。')); };
+    document.head.appendChild(s);
+  });
+  return loaded[src];
+}
+function decodeText(buf){
+  const u8 = new Uint8Array(buf);
+  if (u8[0] === 0xFF && u8[1] === 0xFE) return new TextDecoder('utf-16le').decode(buf);
+  if (u8[0] === 0xFE && u8[1] === 0xFF) return new TextDecoder('utf-16be').decode(buf);
+  try { return new TextDecoder('utf-8', {fatal:true}).decode(buf).replace(/^﻿/, ''); }
+  catch(_){ try { return new TextDecoder('shift_jis').decode(buf); } catch(__){ return new TextDecoder().decode(buf); } }
+}
+async function pdfToText(buf){
+  await loadScript(PDFJS); await loadScript(PDFJS_WORKER);
+  const lib = window.pdfjsLib; lib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+  const doc = await lib.getDocument({data:new Uint8Array(buf), isEvalSupported:false}).promise;
+  const lines = [];
+  for (let p = 1; p <= doc.numPages; p++){
+    const tc = await (await doc.getPage(p)).getTextContent();
+    let cur = '', lastY = null;
+    for (const it of tc.items){
+      if (!('str' in it)) continue;
+      const y = it.transform[5], h = Math.abs(it.transform[3]) || it.height || 10;
+      if (lastY !== null && Math.abs(y - lastY) > h * 0.6 && cur){ lines.push(cur); cur = ''; }
+      cur += it.str; lastY = y;
+      if (it.hasEOL){ lines.push(cur); cur = ''; lastY = null; }
+    }
+    if (cur) lines.push(cur);
+    lines.push('');
+  }
+  const text = lines.join('\n');
+  if (!text.replace(/\s/g, '')) throw new Error('PDFから文字を取り出せませんでした(画像化されたPDFや縦書きPDFの可能性があります)。Word かテキストで取り込んでください。');
+  return text;
+}
+async function docxToText(buf){
+  await loadScript(MAMMOTH);
+  return (await window.mammoth.extractRawText({arrayBuffer:buf})).value.replace(/\n\n/g, '\n');
+}
+
+/* =====================================================================
+   Stores — cloud (shared db) / local (this device)
+   API: watchScripts, loadBase, createScript, updateScript, deleteScript,
+        watch(sid,col), add / set / update / del (sid,col,…)
+   ===================================================================== */
+function chunkLines(lines){
+  const chunks = []; let cur = [], size = 0; const enc = new TextEncoder();
+  for (const l of lines){
+    const s = enc.encode(JSON.stringify(l)).length + 1;
+    if (cur.length && (size + s > 150000 || cur.length >= 800)){ chunks.push(cur); cur = []; size = 0; }
+    cur.push(l); size += s;
+  }
+  if (cur.length) chunks.push(cur);
+  return chunks;
+}
+function mergeView(base, ops, sid, col){
+  const map = new Map(base);
+  for (const op of ops){
+    if (op.sid !== sid || (op.col || 'takes') !== col) continue;
+    if (op.op === 'add' || op.op === 'set'){ map.set(op.id, {...op.data, id:op.id, _pending:true}); }
+    else if (op.op === 'update'){ const t = map.get(op.id); if (t) map.set(op.id, {...t, ...op.data, _pending:true}); }
+    else if (op.op === 'delete'){ map.delete(op.id); }
+  }
+  return [...map.values()];
+}
+
+function CloudStore(db){
+  const S = {mode:'cloud'};
+  let pending = lsGet('aigis.pending', []);
+  const touched = new Map(), listeners = new Set();
+  let flushing = false, retryTimer = null;
+  S.pendingCount = () => pending.length;
+  S.onPendingChange = null; S.onWriteRefused = null;
+  const savePending = () => { lsSet('aigis.pending', pending); listeners.forEach(f => f()); S.onPendingChange && S.onPendingChange(); };
+
+  S.watchScripts = (cb, onErr) => db.collection('scripts').orderBy('createdAt', 'desc').onSnapshot(
+    snap => cb(snap.docs.map(d => ({...d.data(), id:d.id})), snap.metadata), e => onErr && onErr(e));
+  S.loadBase = async sid => {
+    const key = 'aigis.lines.' + sid;
+    try {
+      const snap = await withTimeout(db.collection(`scripts/${sid}/chunks`).get(), 15000);
+      const lines = snap.docs.map(d => d.data()).sort((a, b) => a.i - b.i).flatMap(d => d.lines || []);
+      if (lines.length) lsSet(key, lines);
+      return lines;
+    } catch(e){ const c = lsGet(key, null); if (c) return c; throw e; }
+  };
+  S.createScript = async (meta, lines) => {
+    const sid = newId(), chunks = chunkLines(lines);
+    for (let i = 0; i < chunks.length; i++) await db.doc(`scripts/${sid}/chunks/c${i}`).set({i, lines:chunks[i]});
+    await db.doc(`scripts/${sid}`).set({...meta, chunks:chunks.length});
+    lsSet('aigis.lines.' + sid, lines);
+    return sid;
+  };
+  S.updateScript = (sid, patch) => db.doc(`scripts/${sid}`).update(patch);
+  S.deleteScript = async sid => {
+    await db.doc(`scripts/${sid}`).delete();
+    try {
+      const cols = ['chunks', 'takes', 'errs', 'paras'];
+      const snaps = await Promise.all(cols.map(c => db.collection(`scripts/${sid}/${c}`).get()));
+      for (const p of snaps.flatMap((s, i) => s.docs.map(d => `scripts/${sid}/${cols[i]}/${d.id}`))){ await db.doc(p).delete(); await sleep(60); }
+    } catch(_){}
+  };
+  S.watch = (sid, col, cb, onStatus) => {
+    let base = new Map(), baseline = false;
+    const emit = changes => cb(mergeView(base, pending, sid, col), changes);
+    const relisten = () => emit([]);
+    listeners.add(relisten);
+    const key = `aigis.${col}.${sid}`;
+    const cached = lsGet(key, null);
+    if (cached){ base = new Map(cached.map(t => [t.id, t])); setTimeout(() => emit([])); }
+    const unsub = db.collection(`scripts/${sid}/${col}`).onSnapshot(snap => {
+      base = new Map(snap.docs.map(d => [d.id, {...d.data(), id:d.id}]));
+      let changes = [];
+      if (baseline){
+        changes = snap.docChanges().filter(c => !c.doc.metadata.hasPendingWrites)
+          .filter(c => { const t = touched.get(c.doc.id); return !(t && Date.now() - t < 20000); })
+          .map(c => ({type:c.type, doc:{...c.doc.data(), id:c.doc.id}}));
+      }
+      if (!snap.metadata.fromCache){ baseline = true; lsSet(key, [...base.values()]); }
+      onStatus && onStatus(snap.metadata);
+      emit(changes);
+    }, e => onStatus && onStatus(null, e));
+    return () => { unsub(); listeners.delete(relisten); };
+  };
+  function enqueue(op){
+    touched.set(op.id, Date.now());
+    const prev = pending.find(p => p.id === op.id && (p.op === 'add' || p.op === 'set'));
+    if (op.op === 'update' && prev && pending.indexOf(prev) > 0){ prev.data = {...prev.data, ...op.data}; savePending(); flush(); return; }
+    if (op.op === 'set' && prev && pending.indexOf(prev) > 0){ prev.data = op.data; savePending(); flush(); return; }
+    if (op.op === 'delete' && prev && prev.op === 'add'){ pending = pending.filter(p => p.id !== op.id); savePending(); return; }
+    pending.push(op); savePending(); flush();
+  }
+  S.add = (sid, col, data) => { const id = newId(); enqueue({op:'add', sid, col, id, data}); return id; };
+  S.set = (sid, col, id, data) => enqueue({op:'set', sid, col, id, data});
+  S.update = (sid, col, id, data) => enqueue({op:'update', sid, col, id, data});
+  S.del = (sid, col, id) => enqueue({op:'delete', sid, col, id});
+  async function flush(){
+    if (flushing) return; flushing = true;
+    try {
+      while (pending.length){
+        const op = pending[0];
+        const ref = db.doc(`scripts/${op.sid}/${op.col || 'takes'}/${op.id}`);
+        try {
+          if (op.op === 'add' || op.op === 'set') await withTimeout(ref.set(op.data), 12000);
+          else if (op.op === 'update') await withTimeout(ref.update(op.data), 12000);
+          else await withTimeout(ref.delete(), 12000);
+          touched.set(op.id, Date.now());
+          if (pending[0] === op) pending.shift(); else pending = pending.filter(p => p !== op);
+          savePending();
+        } catch(e){
+          const code = e && e.code;
+          if (['invalid_argument','quota_exceeded','revoked','not_granted','capability_disabled','transform_error','permission-denied','invalid-argument','resource-exhausted','not-found'].includes(code)){
+            pending = pending.filter(p => p !== op); savePending();
+            S.onWriteRefused && S.onWriteRefused(code, op);
+          } else { clearTimeout(retryTimer); retryTimer = setTimeout(flush, 8000); break; }
+        }
+      }
+    } finally { flushing = false; }
+  }
+  window.addEventListener('online', () => flush());
+  if (pending.length) setTimeout(flush, 500);
+  return S;
+}
+
+function LocalStore(){
+  const S = {mode:'local'};
+  const mem = {};
+  const get = (k, d) => { const v = lsGet(k, undefined); return v === undefined ? (k in mem ? mem[k] : d) : v; };
+  const put = (k, v) => { if (!lsSet(k, v)) mem[k] = v; };
+  const key = (col, sid) => `aigis.local.${col}.${sid}`;
+  const bc = ('BroadcastChannel' in window) ? new BroadcastChannel('aigis-local2') : null;
+  const scriptL = new Set(), colL = new Map();
+  const fireScripts = () => { const list = get('aigis.local.scripts', []).slice().sort((a, b) => b.createdAt - a.createdAt); scriptL.forEach(f => f(list)); };
+  const fire = (sid, col, changes) => { (colL.get(col + ':' + sid) || new Set()).forEach(f => f(get(key(col, sid), []), changes)); };
+  if (bc) bc.onmessage = e => { const m = e.data || {}; if (m.k === 'scripts') fireScripts(); if (m.k === 'col') fire(m.sid, m.col, m.changes || []); };
+  S.pendingCount = () => 0;
+  S.watchScripts = cb => { scriptL.add(cb); setTimeout(fireScripts); return () => scriptL.delete(cb); };
+  S.loadBase = async sid => get(key('lines', sid), []);
+  S.createScript = async (meta, lines) => {
+    const sid = newId(); put(key('lines', sid), lines);
+    put('aigis.local.scripts', [...get('aigis.local.scripts', []), {...meta, id:sid}]);
+    fireScripts(); bc && bc.postMessage({k:'scripts'}); return sid;
+  };
+  S.updateScript = async (sid, patch) => { put('aigis.local.scripts', get('aigis.local.scripts', []).map(s => s.id === sid ? {...s, ...patch} : s)); fireScripts(); bc && bc.postMessage({k:'scripts'}); };
+  S.deleteScript = async sid => {
+    put('aigis.local.scripts', get('aigis.local.scripts', []).filter(s => s.id !== sid));
+    try { ['lines', 'takes', 'errs', 'paras'].forEach(c => localStorage.removeItem(key(c, sid))); } catch(_){}
+    fireScripts(); bc && bc.postMessage({k:'scripts'});
+  };
+  S.watch = (sid, col, cb, onStatus) => {
+    const k = col + ':' + sid; if (!colL.has(k)) colL.set(k, new Set());
+    colL.get(k).add(cb); setTimeout(() => { onStatus && onStatus({fromCache:false}); fire(sid, col, []); });
+    return () => colL.get(k).delete(cb);
+  };
+  const mutate = (sid, col, fn, change) => { put(key(col, sid), fn(get(key(col, sid), []))); fire(sid, col, []); bc && bc.postMessage({k:'col', sid, col, changes:[change]}); };
+  S.add = (sid, col, data) => { const id = newId(); S.set(sid, col, id, data); return id; };
+  S.set = (sid, col, id, data) => mutate(sid, col, a => [...a.filter(t => t.id !== id), {...data, id}], {type:'added', doc:{...data, id}});
+  S.update = (sid, col, id, data) => mutate(sid, col, a => a.map(t => t.id === id ? {...t, ...data} : t), {type:'modified', doc:{id, ...data}});
+  S.del = (sid, col, id) => { const t = get(key(col, sid), []).find(x => x.id === id); mutate(sid, col, a => a.filter(t => t.id !== id), {type:'removed', doc:t || {id}}); };
+  return S;
+}
+
+/* =====================================================================
+   State
+   ===================================================================== */
+const state = {
+  store:null, user:null, room:null, uid:null, canWrite:true, roomOn:false,
+  scripts:[], scriptsReady:false,
+  sid:null, meta:null,
+  base:[], paraDocs:[], rawTakes:[], rawErrs:[],
+  paras:[], pById:new Map(), order:new Map(),
+  takes:[], errs:[], mIdx:new Map(), psig:new Map(), pstat:new Map(),
+  unsubs:[], status:'wait', statusTimer:null, ready:{paras:false, takes:false, errs:false},
+  editing:false, focusReq:null, saveTimers:new Map(), deferred:false,
+  lastSel:null, undo:[], peers:[], profiles:{},
+  blinkOn: true, fs: lsGet('aigis.fs', 17),
+  homeConfirm:null, cursor:0,
+};
+const view = $('#view');
+const paper = () => $('#paper');
+
+/* ---------- toasts & modal ---------- */
+function toast(msg, opt = {}){
+  const t = document.createElement('div'); t.className = 'toast' + (opt.err ? ' err' : '');
+  const m = document.createElement('div'); m.className = 'msg'; m.textContent = msg; t.appendChild(m);
+  if (opt.action){ const b = document.createElement('button'); b.type = 'button'; b.textContent = opt.action; b.onclick = () => { t.remove(); opt.onAction && opt.onAction(); }; t.appendChild(b); }
+  $('#toasts').appendChild(t);
+  while ($('#toasts').children.length > 2) $('#toasts').firstChild.remove();
+  setTimeout(() => t.remove(), opt.ms || 4500);
+}
+function openModal(html){
+  const root = $('#modalRoot');
+  root.innerHTML = `<div class="modal-back"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
+  const back = root.firstChild;
+  back.addEventListener('mousedown', e => { if (e.target === back) closeModal(); });
+  return back.firstChild;
+}
+function closeModal(){ $('#modalRoot').innerHTML = ''; }
+
+/* ---------- people ---------- */
+async function resolveProfiles(ids){
+  ids = [...new Set(ids.filter(x => x && x !== 'seed' && !(x in state.profiles)))];
+  if (!state.user || !ids.length) return;
+  try { Object.assign(state.profiles, await state.user.profiles(ids)); } catch(_){}
+}
+function personName(id){
+  if (!id) return state.store && state.store.mode === 'local' ? 'この端末' : '参加者';
+  if (id === 'seed') return 'サンプル';
+  if (id === state.uid) return state.backend === 'firebase' ? (lsGet('aigis.name', '') || 'あなた') + '(あなた)' : 'あなた';
+  const p = state.profiles[id]; return (p && p.name) || '参加者';
+}
+const personAvatar = id => { const p = state.profiles[id]; return p && p.avatarUrl; };
+
+/* =====================================================================
+   Sync badge & presence
+   ===================================================================== */
+function renderSync(){
+  const box = $('#sync'), txt = $('#syncText'); box.className = 'sync';
+  const pend = state.store ? state.store.pendingCount() : 0; let label;
+  if (!state.store) label = '接続中…';
+  else if (state.store.mode === 'local') label = 'この端末に保存';
+  else if (!navigator.onLine){ box.classList.add('warn'); label = pend ? `オフライン・未送信 ${pend}件` : 'オフライン'; }
+  else if (pend){ box.classList.add('warn'); label = `保存中… ${pend}件`; }
+  else if (state.sid && state.status === 'slow'){ box.classList.add('warn'); label = '同期を確認中…'; }
+  else { box.classList.add('ok'); label = 'すべての変更を保存しました'; }
+  txt.textContent = label; box.title = label;
+}
+window.addEventListener('online', renderSync); window.addEventListener('offline', renderSync);
+function setPresence(patch){ if (state.room) state.room.presence({uid:state.uid, dev:DEVICE, ...patch}).catch(() => {}); }
+async function renderPeers(){
+  const btn = $('#peers');
+  if (!state.room){ btn.hidden = true; return; }
+  const peers = state.room.peers().filter(p => p.kind === 'viewer');
+  await resolveProfiles(peers.map(p => p.by || (p.presence && p.presence.uid)).filter(Boolean));
+  state.peers = peers;
+  const here = peers.filter(p => !state.sid || (p.presence && p.presence.sid === state.sid));
+  btn.hidden = false; btn.innerHTML = '';
+  for (const p of here.slice(0, 4)){
+    const id = p.by || (p.presence && p.presence.uid);
+    const img = document.createElement('img'); img.className = 'av'; img.alt = '';
+    const av = personAvatar(id); if (av) img.src = av;
+    img.title = (p.isMe ? 'あなた' : personName(id)) + ' · ' + ((p.presence && p.presence.dev) || '');
+    btn.appendChild(img);
+  }
+  if (here.length > 4){ const m = document.createElement('span'); m.className = 'more'; m.textContent = '+' + (here.length - 4); btn.appendChild(m); }
+  btn.setAttribute('aria-label', `参加者 ${here.length}人`);
+  if (!$('#pop').hidden) renderPop();
+  renderPeerMarks();
+}
+function renderPop(){
+  const list = state.peers.slice().sort((a, b) => b.sameTab - a.sameTab);
+  $('#pop').innerHTML = (state.backend === 'firebase' ? `<h3 style="display:flex;justify-content:space-between;align-items:center">あなた: ${esc(lsGet('aigis.name', '') || '名前未設定')}<button class="btn small text" type="button" id="chName">名前を変更</button></h3>` : '') + `<h3>参加者 ${list.length}人</h3><ul class="plist">${list.map(p => {
+    const id = p.by || (p.presence && p.presence.uid), pr = p.presence || {};
+    const name = p.sameTab ? 'あなた' : (p.isMe ? 'あなた(別の画面)' : personName(id));
+    const idle = !p.sameTab && Date.now() - (p.updatedAt || 0) > 5 * 60 * 1000;
+    let where = 'ホーム画面';
+    if (pr.sid){ const s = state.scripts.find(x => x.id === pr.sid); where = pr.sid === state.sid ? 'この台本' : `「${s ? s.title : '別の台本'}」`; if (pr.edit && pr.sid === state.sid) where += ' · 編集中'; }
+    const av = personAvatar(id);
+    return `<li><img class="av" alt="" ${av ? `src="${esc(av)}"` : ''}><div><div class="nm">${esc(name)}</div><div class="sub">${esc(pr.dev || '端末不明')} · ${esc(where)}</div></div><span class="pill ${idle ? 'idle' : 'on'}">${idle ? '離席中' : '接続中'}</span></li>`;
+  }).join('')}</ul>`;
+}
+document.addEventListener('click', e => { if (e.target.id === 'chName'){ $('#pop').hidden = true; askName(true); } });
+$('#peers').addEventListener('click', e => { e.stopPropagation(); const pop = $('#pop'); pop.hidden = !pop.hidden; if (!pop.hidden) renderPop(); });
+document.addEventListener('click', e => { if (!$('#pop').hidden && !e.target.closest('#pop')) $('#pop').hidden = true; });
+function renderPeerMarks(){
+  if (!state.sid || !paper()) return;
+  $$('.ptags').forEach(n => n.remove());
+  for (const p of state.peers){
+    const pr = p.presence || {};
+    if (p.sameTab || pr.sid !== state.sid || !(pr.edit || pr.p)) continue;
+    const node = paper().querySelector(`.p[data-id="${pr.edit || pr.p}"]`); if (!node) continue;
+    const id = p.by || pr.uid, prof = state.profiles[id] || {};
+    let box = node.querySelector('.ptags');
+    if (!box){ box = document.createElement('div'); box.className = 'ptags'; box.setAttribute('aria-hidden', 'true'); node.appendChild(box); }
+    const tag = document.createElement('span'); tag.className = 'ptag'; tag.style.background = prof.color || '#5F6368';
+    const nm = p.isMe ? 'あなた' : personName(id);
+    tag.textContent = nm.slice(0, 1); tag.title = `${nm}(${pr.dev || ''})${pr.edit ? 'が編集中' : 'が選択中'}`;
+    box.appendChild(tag);
+  }
+}
+
+/* =====================================================================
+   Home
+   ===================================================================== */
+function showHome(){
+  stopScript();
+  $('#titleIn').hidden = true;
+  setPresence({sid:null, p:null, edit:null});
+  renderHome(); renderPeers();
+}
+async function renderHome(){
+  if (state.sid) return;
+  const local = state.store && state.store.mode === 'local';
+  const list = state.scripts;
+  await resolveProfiles(list.map(s => s.by));
+  if (state.sid) return;
+  const cards = list.map(s => {
+    const av = personAvatar(s.by), conf = state.homeConfirm === s.id;
+    return `<li class="card" data-open="${esc(s.id)}" tabindex="0" role="link" aria-label="${esc(s.title)} を開く">
+      <div class="thumb"><div>${esc(s.preview || '')}</div></div>
+      <div class="cb"><h2>${esc(s.title)}</h2>
+      <div class="foot"><span class="meta">${av ? `<img class="av" alt="" src="${esc(av)}">` : ''}${s.createdAt ? fmtDate(s.createdAt) : ''} · セリフ ${s.dlgCount ?? '–'}</span>
+      ${conf ? `<span><button class="btn small danger" data-del-yes="${esc(s.id)}" type="button">削除</button> <button class="btn small text" data-del-no type="button">やめる</button></span>`
+             : `<button class="btn small text" data-del="${esc(s.id)}" type="button" aria-label="${esc(s.title)} を削除">削除</button>`}</div></div></li>`;
+  }).join('');
+  view.innerHTML = `<section class="home">
+    ${local ? `<div class="notice">共同編集サーバーに接続できないため、この端末内だけに保存しています。</div>` : ''}
+    <div class="home-head"><div><h1>台本</h1><p>開く台本を選ぶか、新しく取り込みます。</p></div>
+      <div class="home-actions"><button class="btn" id="sampleBtn" type="button">サンプル台本を作成</button><button class="btn primary" id="importBtn" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12m0-12-4 4m4-4 4 4M5 20h14"/></svg>台本を取り込む</button></div></div>
+    <div class="drop" id="drop">PDF・Word(.docx)・テキストファイルをここにドロップしても取り込めます</div>
+    ${!state.scriptsReady ? `<div class="loading">台本の一覧を読み込み中…</div>` : list.length ? `<ul class="cards">${cards}</ul>` :
+      `<div class="empty"><p>まだ台本がありません。</p><button class="btn primary" id="importBtn2" type="button">台本を取り込む</button></div>`}
+  </section>`;
+}
+view.addEventListener('click', async e => {
+  if (state.sid) return;
+  const t = e.target.closest('button,[data-open]'); if (!t) return;
+  if (t.id === 'importBtn' || t.id === 'importBtn2'){ $('#fileInput').click(); return; }
+  if (t.id === 'sampleBtn'){ showImportPreview('サンプル台本「指輪の行方」', parseScript(SAMPLE), 'sample'); return; }
+  if (t.dataset.del){ e.stopPropagation(); state.homeConfirm = t.dataset.del; renderHome(); return; }
+  if ('delNo' in t.dataset){ e.stopPropagation(); state.homeConfirm = null; renderHome(); return; }
+  if (t.dataset.delYes){
+    e.stopPropagation(); const sid = t.dataset.delYes; state.homeConfirm = null;
+    try { await state.store.deleteScript(sid); toast('台本を削除しました'); } catch(err){ toast('削除できませんでした', {err:true}); }
+    return;
+  }
+  if (t.dataset.open) goScript(t.dataset.open);
+});
+view.addEventListener('keydown', e => { if (!state.sid && e.key === 'Enter' && e.target.dataset && e.target.dataset.open) goScript(e.target.dataset.open); });
+['dragover','dragenter'].forEach(ev => document.addEventListener(ev, e => { if (state.sid) return; e.preventDefault(); const d = $('#drop'); d && d.classList.add('over'); }));
+document.addEventListener('dragleave', e => { const d = $('#drop'); if (d && !e.relatedTarget) d.classList.remove('over'); });
+document.addEventListener('drop', e => {
+  if (state.sid) return; e.preventDefault();
+  const d = $('#drop'); d && d.classList.remove('over');
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) handleFile(f);
+});
+$('#fileInput').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) handleFile(f); });
+
+async function handleFile(file){
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  toast(`「${file.name}」を読み込み中…`, {ms:2000});
+  try {
+    if (ext === 'doc') throw new Error('古い Word 形式(.doc)は読み込めません。Word で .docx として保存し直してください。');
+    const buf = await file.arrayBuffer();
+    let text, src = 'txt';
+    if (ext === 'pdf' || file.type === 'application/pdf'){ text = await pdfToText(buf); src = 'pdf'; }
+    else if (ext === 'docx'){ text = await docxToText(buf); src = 'word'; }
+    else text = decodeText(buf);
+    const lines = parseScript(text);
+    if (!lines.some(l => l.x)) throw new Error('台本の本文が見つかりませんでした。');
+    showImportPreview(file.name.replace(/\.[^.]+$/, ''), lines, src);
+  } catch(err){ toast(err.message || '読み込みに失敗しました', {err:true, ms:7000}); }
+}
+function showImportPreview(title, lines, source){
+  const infos = lines.map(l => classify(l.x));
+  const d = infos.filter(i => i.type === 'd').length, s = infos.filter(i => i.type === 's').length, a = infos.filter(i => i.type === 'a').length;
+  const sp = [...new Set(infos.filter(i => i.type === 'd' && i.sp).map(i => i.sp.replace(/[（(].*$/, '')))];
+  const m = openModal(`<header><h2>台本の取り込み</h2><p>取り込んだあとも、ツールバーの「編集」から文章を直せます。</p></header>
+    <div class="body">
+      <div class="field"><label for="impTitle">台本タイトル</label><input type="text" id="impTitle" maxlength="80"></div>
+      <div class="stats"><span class="pill">セリフ ${d}</span><span class="pill">シーン ${s}</span><span class="pill">ト書き ${a}</span><span class="pill">登場人物 ${sp.length}${sp.length ? ':' + esc(sp.slice(0, 8).join('・')) : ''}</span></div>
+      <div class="pv">${lines.map((l, i) => { const f = infos[i]; if (f.type === 'b') return '<div>&nbsp;</div>';
+        if (f.type === 'd') return `<div class="d"><b>${esc(l.x.slice(0, f.d0))}</b>${esc(l.x.slice(f.d0))}</div>`;
+        return `<div class="${f.type}">${esc(l.x)}</div>`; }).join('')}</div>
+    </div>
+    <footer><button class="btn text" type="button" id="impCancel">キャンセル</button><button class="btn primary" type="button" id="impOk">取り込む</button></footer>`);
+  $('#impTitle', m).value = title;
+  $('#impCancel', m).onclick = closeModal;
+  $('#impOk', m).onclick = async () => {
+    const btn = $('#impOk', m); btn.disabled = true; btn.textContent = '保存中…';
+    const meta = {
+      title: ($('#impTitle', m).value || '無題の台本').trim().slice(0, 80), createdAt: Date.now(), by: state.uid, source, v:2,
+      lineCount: lines.filter(l => l.x).length, dlgCount: d, sceneCount: s,
+      preview: lines.slice(0, 18).map(l => l.x).join('\n').slice(0, 400),
+    };
+    try { const sid = await state.store.createScript(meta, lines.map(l => ({id:l.id, x:l.x}))); closeModal(); goScript(sid); }
+    catch(err){ btn.disabled = false; btn.textContent = '取り込む'; toast('保存できませんでした' + (err && err.code === 'invalid_argument' ? '(編集権限がない可能性があります)' : ''), {err:true, ms:7000}); }
+  };
+}
+
+/* =====================================================================
+   Document model
+   ===================================================================== */
+function stopScript(){
+  state.unsubs.forEach(u => u()); state.unsubs = [];
+  clearTimeout(state.statusTimer);
+  state.saveTimers.forEach(t => clearTimeout(t)); state.saveTimers = new Map();
+  Object.assign(state, {sid:null, meta:null, base:[], paraDocs:[], rawTakes:[], rawErrs:[], paras:[], pById:new Map(), order:new Map(),
+    takes:[], errs:[], mIdx:new Map(), psig:new Map(), pstat:new Map(), editing:false, lastSel:null, undo:[], deferred:false, ready:{paras:false, takes:false, errs:false}});
+  hideSelbar(); closeDlg(); closeMpop();
+}
+/* 元の台本(取り込み時) + 段落ごとの書き換え → 現在の段落一覧 */
+function buildParas(){
+  const map = new Map();
+  state.base.forEach((l, i) => {
+    const x = l.sp !== undefined || l.t ? ((l.sp || '') + (l.x || '')) : (l.x || '');   // 旧形式(役名と本文が別)にも対応
+    map.set(l.id, {id:l.id, o:i * 1024, x});
+  });
+  for (const d of state.paraDocs){ map.set(d.id, {id:d.id, o:+d.o || 0, x:String(d.x ?? ''), del:!!d.del, _pending:d._pending}); }
+  const list = [...map.values()].filter(p => !p.del).sort((a, b) => a.o - b.o || (a.id < b.id ? -1 : 1));
+  let no = 0, scene = '';
+  for (const p of list){ p.inf = classify(p.x); if (p.inf.type === 's') scene = p.x.trim(); p.scene = scene; if (p.x.trim()) p.no = ++no; }
+  state.paras = list; state.pById = new Map(list.map(p => [p.id, p])); state.order = new Map(list.map((p, i) => [p.id, i]));
+}
+/* 旧形式のテイク(行単位)を文字範囲に変換 */
+function normMark(m, kind){
+  if (Array.isArray(m.segs)) return {...m, segs:m.segs.filter(s => s && s.p && s.e > s.s)};
+  if (m.lineId){
+    const p = state.pById.get(m.lineId); if (!p) return {...m, segs:[]};
+    const d0 = p.inf.d0, L = p.x.length;
+    if (kind === 'errs' && m.s >= 0 && m.e >= 0) return {...m, segs:[{p:m.lineId, s:d0 + m.s, e:Math.min(L, d0 + m.e + 1)}]};
+    return {...m, segs:[{p:m.lineId, s:d0, e:L}]};
+  }
+  return {...m, segs:[]};
+}
+function rebuildMarks(){
+  const byTime = (a, b) => (a.at || 0) - (b.at || 0) || (a.id < b.id ? -1 : 1);
+  state.takes = state.rawTakes.map(t => normMark(t, 'takes')).sort(byTime);
+  state.errs = state.rawErrs.map(e => normMark(e, 'errs')).sort(byTime);
+  const idx = new Map();
+  const slot = p => { if (!idx.has(p)) idx.set(p, {t:[], e:[]}); return idx.get(p); };
+  for (const t of state.takes) for (const s of t.segs) slot(s.p).t.push({m:t, s:s.s, e:s.e});
+  for (const e of state.errs) for (const s of e.segs) slot(s.p).e.push({m:e, s:s.s, e:s.e});
+  state.mIdx = idx;
+}
+function coverage(p){
+  const L = p.x.length, cov = new Uint16Array(L), er = new Uint8Array(L);
+  const ix = state.mIdx.get(p.id);
+  if (ix){
+    for (const r of ix.t) for (let i = Math.max(0, r.s); i < Math.min(L, r.e); i++) cov[i]++;
+    for (const r of ix.e) for (let i = Math.max(0, r.s); i < Math.min(L, r.e); i++) er[i] = 1;
+  }
+  return {cov, er};
+}
+const countable = (p, i) => p.inf.type === 'd' && i >= p.inf.d0 && !IGN.test(p.x[i]);
+/* セリフ段落の状態: 対象文字すべてが3テイク以上 → 完了 */
+function paraStatus(p, cov){
+  if (p.inf.type !== 'd') return null;
+  let min = Infinity, any = false, n = 0;
+  for (let i = p.inf.d0; i < p.x.length; i++){ if (!countable(p, i)) continue; n++; min = Math.min(min, cov[i]); if (cov[i] > 0) any = true; }
+  if (!n) return null;
+  return min >= DONE_AT ? 'done' : any ? 'part' : 'none';
+}
+function paraHTML(p){
+  const t = p.inf.type;
+  if (state.editing){
+    return `<div class="p t-${t}" data-id="${p.id}"><div class="pt" contenteditable="${PLAIN ? 'plaintext-only' : 'true'}" spellcheck="false">${esc(p.x)}</div></div>`;
+  }
+  const {cov, er} = coverage(p);
+  const st = paraStatus(p, cov);
+  let html = '', i = 0, maxN = 0; const L = p.x.length;
+  const keyAt = k => `${cov[k]}|${er[k]}|${t === 'd' && k < p.inf.d0 ? 1 : 0}|${countable(p, k) && cov[k] < DONE_AT ? 1 : 0}`;
+  while (i < L){
+    const key = keyAt(i); let j = i + 1;
+    while (j < L && keyAt(j) === key) j++;
+    const n = cov[i]; maxN = Math.max(maxN, n);
+    const cls = ['sg']; if (er[i]) cls.push('er'); if (t === 'd' && i < p.inf.d0) cls.push('spk'); if (countable(p, i) && n < DONE_AT) cls.push('pend');
+    html += `<span class="${cls.join(' ')}"${n ? ` data-n="${n}" style="${markStyle(n)}"` : ''}>${esc(p.x.slice(i, j))}</span>`;
+    i = j;
+  }
+  state.pstat.set(p.id, st);
+  return `<div class="p t-${t}${st ? ' st-' + st : ''}" data-id="${p.id}"><div class="pt" style="--n:${maxN}">${html}</div></div>`;
+}
+function paraSig(p){
+  const ix = state.mIdx.get(p.id);
+  const ms = ix ? ix.t.map(r => r.m.id + r.s + '-' + r.e + (r.m._pending ? 'p' : '')).join(',') + '/' + ix.e.map(r => r.m.id + r.s + '-' + r.e).join(',') : '';
+  return (state.editing ? 'E' : 'R') + p.x + '\u0001' + ms;
+}
+function hasLiveSelection(){
+  const sel = window.getSelection();
+  return sel && !sel.isCollapsed && paper() && paper().contains(sel.anchorNode);
+}
+/* 変更のあった段落だけ描き直す(選択中は解除されるまで待つ) */
+function renderDoc(force){
+  const pp = paper(); if (!pp) return;
+  if (!force && !state.editing && hasLiveSelection()){ state.deferred = true; return; }
+  state.deferred = false;
+  const ids = state.paras.map(p => p.id);
+  const domIds = $$('.p', pp).map(n => n.dataset.id);
+  const focused = state.editing && document.activeElement && document.activeElement.closest && document.activeElement.closest('.p');
+  const focusId = focused && focused.dataset.id;
+  if (force || ids.join() !== domIds.join()){
+    const keep = focusId ? {id:focusId, off:caretOffset(focused.querySelector('.pt'))} : null;
+    pp.innerHTML = state.paras.map(paraHTML).join('');
+    state.psig = new Map(state.paras.map(p => [p.id, paraSig(p)]));
+    if (!state.focusReq && keep) state.focusReq = keep;
+  } else {
+    for (const p of state.paras){
+      const sig = paraSig(p);
+      if (state.psig.get(p.id) === sig) continue;
+      if (p.id === focusId) continue;                      // 入力中の段落は触らない
+      const node = pp.querySelector(`.p[data-id="${p.id}"]`);
+      if (node){ node.outerHTML = paraHTML(p); state.psig.set(p.id, sig); }
+    }
+  }
+  if (state.focusReq){
+    const {id, off} = state.focusReq;
+    const pt = pp.querySelector(`.p[data-id="${id}"] .pt`);
+    if (pt){ state.focusReq = null; pt.focus(); setCaret(pt, off); }
+  }
+  renderProgress(); renderHist(); renderPeerMarks();
+}
+function recompute(){
+  buildParas(); rebuildMarks(); renderDoc(false);
+}
+
+/* =====================================================================
+   Script view
+   ===================================================================== */
+function goScript(sid){ try { location.hash = 'script-' + sid; } catch(_){} safeOpen(sid); }
+function safeOpen(sid){
+  openScript(sid).catch(err => {
+    console.error(err);
+    if (state.sid === sid) view.innerHTML = `<div class="loading">台本を開けませんでした(${esc(err && (err.message || err.code) || 'エラー')})。<br><br><a href="#" class="btn">台本の一覧へ</a></div>`;
+  });
+}
+async function openScript(sid){
+  if (state.sid === sid) return;
+  stopScript(); state.sid = sid;
+  view.innerHTML = `<div class="loading">台本を開いています…</div>`;
+  let tries = 0; while (!state.scriptsReady && tries++ < 40) await sleep(250);
+  if (state.sid !== sid) return;
+  const meta = state.scripts.find(s => s.id === sid);
+  if (!meta){ view.innerHTML = `<div class="loading">この台本は見つかりませんでした。<br><br><a href="#" class="btn">台本の一覧へ</a></div>`; return; }
+  state.meta = meta;
+  const ti = $('#titleIn'); ti.hidden = false; ti.value = meta.title;
+  let base;
+  try { base = await state.store.loadBase(sid); }
+  catch(e){ if (state.sid === sid) view.innerHTML = `<div class="loading">台本を読み込めませんでした。通信状態を確認して、もう一度開いてください。</div>`; return; }
+  if (state.sid !== sid) return;
+  state.base = base.map(l => ({...l}));
+  buildParas();
+  renderShell();
+  setPresence({sid, p:null, edit:null});
+  state.status = 'wait';
+  state.statusTimer = setTimeout(() => { if (state.status === 'wait'){ state.status = 'slow'; renderSync(); } }, 10000);
+  const onStatus = (md, err) => {
+    if (err){ state.status = 'slow'; renderSync(); toast('同期が止まりました。ページを開き直してください。', {err:true, ms:8000}); return; }
+    if (md && !md.fromCache){ state.status = 'ok'; clearTimeout(state.statusTimer); }
+    renderSync();
+  };
+  state.unsubs.push(state.store.watch(sid, 'paras', (docs, ch) => { state.paraDocs = docs; state.ready.paras = true; recompute(); announce(ch, 'paras'); }, onStatus));
+  state.unsubs.push(state.store.watch(sid, 'takes', (docs, ch) => { state.rawTakes = docs; state.ready.takes = true; recompute(); announce(ch, 'takes'); }));
+  state.unsubs.push(state.store.watch(sid, 'errs', (docs, ch) => { state.rawErrs = docs; state.ready.errs = true; recompute(); announce(ch, 'errs'); }));
+  renderPeers();
+}
+function renderShell(){
+  view.innerHTML = `
+  <div class="tbar" role="toolbar" aria-label="ツールバー">
+    <button class="tb" type="button" id="tbUndo" title="元に戻す (${isMac ? '⌘' : 'Ctrl'}+Z)" aria-label="元に戻す"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+    <span class="sep"></span>
+    <button class="tb" type="button" id="tbTake" title="選択した文字にテイクを記録 (${isMac ? '⌘' : 'Ctrl'}+U)"><span class="u">U</span><span class="lbl">テイクを記録</span></button>
+    <button class="tb" type="button" id="tbErr" title="選択した文字をセリフ間違いとして記録"><span class="eicon">誤</span><span class="lbl">セリフ間違い</span></button>
+    <span class="sep"></span>
+    <button class="tb" type="button" id="tbEdit" aria-pressed="false" title="台本の文章を書き換える"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg><span class="lbl">編集</span></button>
+    <span class="sep"></span>
+    <button class="tb" type="button" id="tbNext" title="次の未完了セリフへ"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m0 0-5-5m5 5 5-5"/></svg><span class="lbl">次の未完了</span></button>
+    <button class="tb" type="button" id="fsDown" aria-label="文字を小さく">A−</button><button class="tb" type="button" id="fsUp" aria-label="文字を大きく">A＋</button>
+    <span class="sep"></span>
+    <span class="prog" id="prog"></span>
+    <span class="flex1"></span>
+    <button class="tb" type="button" id="tbExport"><span class="lbl">書き出し</span><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></svg></button>
+    <button class="tb" type="button" id="histBtn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H8l-4 4z"/></svg><span class="lbl">撮影履歴</span></button>
+  </div>
+  <div class="work">
+    <div class="canvas">
+      <div class="edit-hint" id="editHint" hidden>編集中です。文字を直接書き換えられます。Enter で段落を分け、行頭で Backspace を押すと前の段落とつながります。終わったら「編集」をもう一度押してください。</div>
+      <div class="page"><div class="paper${state.blinkOn ? ' blinking' : ''}" id="paper" style="--fs:${state.fs}px"></div><div id="addWrap" hidden><button class="btn small addp" type="button" id="addPara">＋ 最後に段落を追加</button></div></div>
+    </div>
+    <aside class="hist" id="hist" aria-label="撮影履歴"></aside>
+  </div>`;
+  renderDoc(true);
+}
+function renderProgress(){
+  const el = $('#prog'); if (!el) return;
+  let done = 0, part = 0, none = 0;
+  for (const p of state.paras){ if (p.inf.type !== 'd') continue; const s = paraStatus(p, coverage(p).cov); if (s === 'done') done++; else if (s === 'part') part++; else if (s === 'none') none++; }
+  const total = done + part + none || 1;
+  el.innerHTML = `<span class="bar" role="img" aria-label="撮影完了 ${done}、途中 ${part}、未撮影 ${none}"><i class="b-done" style="width:${done / total * 100}%"></i><i class="b-part" style="width:${part / total * 100}%"></i></span><span><b>${done}</b>/${done + part + none} 完了</span>`;
+}
+
+/* ---------- history column ---------- */
+function markText(m){ return m.segs.map(s => { const p = state.pById.get(s.p); return p ? p.x.slice(s.s, s.e) : ''; }).join(' / '); }
+function takeOrdinalAt(t){
+  const s = t.segs[0]; if (!s) return '';
+  const ix = state.mIdx.get(s.p); if (!ix) return '';
+  const k = ix.t.filter(r => r.s < s.e && r.e > s.s && (r.m.at || 0) <= (t.at || 0)).length;
+  return k;
+}
+async function renderHist(){
+  const h = $('#hist'); if (!h) return;
+  const items = [...state.takes.map(t => ({k:'t', m:t})), ...state.errs.map(e => ({k:'e', m:e}))].filter(x => x.m.segs.length).sort((a, b) => (b.m.at || 0) - (a.m.at || 0)).slice(0, 200);
+  await resolveProfiles(items.map(i => i.m.by));
+  const legend = `<div class="hempty"><div>文字をドラッグ(スマホは長押し)で選び、<b>テイクを記録</b>(${isMac ? '⌘' : 'Ctrl'}+U)を押すとアンダーラインが1本引かれます。</div>
+    <div class="legend">${[0,1,2,3,4,5].map(i => `<span class="sw" style="background:${takeColor(i)}"></span><span>${i + 1}本目${i === 2 ? '(撮影完了)' : ''}</span>`).join('')}<span class="sw" style="background:linear-gradient(90deg,${takeColor(6)},${takeColor(7)},${takeColor(8)})"></span><span>7本目以降は自動で色を生成</span></div>
+    <div>アンダーラインの線そのものをクリックすると、その部分のテイクを確認・修正・取り消しできます。範囲を選んで「この範囲のテイク」でも一覧が出ます。</div></div>`;
+  h.innerHTML = `<h2>撮影履歴 <span>${state.takes.length} テイク<button class="btn small text closeh" type="button" id="histClose">閉じる</button></span></h2>` + (items.length ? items.map(({k, m}) => {
+    const av = personAvatar(m.by);
+    const head = `<div class="hh">${av ? `<img class="av" alt="" src="${esc(av)}">` : ''}<span class="who">${esc(personName(m.by))}</span><span class="when">${m.at ? fmtTime(m.at) : ''} · ${esc(m.dev || '')}${m._pending ? ' · 保存待ち' : ''}</span></div>`;
+    if (k === 't') return `<div class="hcard${m._pending ? ' pending' : ''}" data-hid="${esc(m.id)}" tabindex="0">${head}<div class="file">${esc(m.file || 'ファイル名なし')}</div><div class="q">${esc(clip(markText(m), 80))}</div></div>`;
+    return `<div class="hcard err${m._pending ? ' pending' : ''}" data-hid="${esc(m.id)}" tabindex="0">${head}<div><span class="wrong">${esc(clip(markText(m), 40))}</span>${m.said ? ` → <b>${esc(m.said)}</b>` : ''}</div></div>`;
+  }).join('') + legend : legend);
+}
+
+/* =====================================================================
+   Selection → character ranges
+   ===================================================================== */
+function textOffset(pt, node, offset){
+  const r = document.createRange(); r.selectNodeContents(pt);
+  try { r.setEnd(node, offset); } catch(_){ return 0; }
+  return r.toString().length;
+}
+function resolvePoint(node, offset, isEnd){
+  const pp = paper(); if (!pp) return null;
+  if (node === pp){
+    const kids = $$('.p', pp);
+    const k = isEnd ? kids[offset - 1] : kids[offset];
+    if (!k) return null;
+    const p = state.pById.get(k.dataset.id); return p ? {pid:p.id, off: isEnd ? p.x.length : 0} : null;
+  }
+  const el = node.nodeType === 1 ? node : node.parentElement;
+  const pn = el && el.closest('.p'); if (!pn || !pp.contains(pn)) return null;
+  const p = state.pById.get(pn.dataset.id); if (!p) return null;
+  const pt = pn.querySelector('.pt');
+  if (!pt.contains(node)) return {pid:p.id, off: isEnd ? p.x.length : 0};
+  return {pid:p.id, off: Math.min(p.x.length, textOffset(pt, node, offset))};
+}
+function selectionSegs(){
+  const sel = window.getSelection(); if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+  const r = sel.getRangeAt(0); const pp = paper(); if (!pp) return null;
+  if (!pp.contains(r.commonAncestorContainer) && r.commonAncestorContainer !== pp) return null;
+  const a = resolvePoint(r.startContainer, r.startOffset, false), b = resolvePoint(r.endContainer, r.endOffset, true);
+  if (!a || !b) return null;
+  const ia = state.order.get(a.pid), ib = state.order.get(b.pid);
+  const segs = [];
+  for (let i = ia; i <= ib; i++){
+    const p = state.paras[i]; const s = i === ia ? a.off : 0, e = i === ib ? b.off : p.x.length;
+    let s2 = s, e2 = e;
+    while (s2 < e2 && /\s/.test(p.x[s2])) s2++;
+    while (e2 > s2 && /\s/.test(p.x[e2 - 1])) e2--;
+    if (e2 > s2) segs.push({p:p.id, s:s2, e:e2});
+  }
+  if (!segs.length) return null;
+  return {segs, rect: r.getBoundingClientRect(), range: r.cloneRange()};
+}
+function segsText(segs){ return segs.map(s => state.pById.get(s.p).x.slice(s.s, s.e)).join('\n'); }
+function overlapTakes(segs){
+  return state.takes.filter(t => t.segs.some(a => segs.some(b => a.p === b.p && a.s < b.e && a.e > b.s)));
+}
+
+/* ---------- floating selection bar ---------- */
+let selT = null;
+document.addEventListener('selectionchange', () => {
+  clearTimeout(selT);
+  selT = setTimeout(() => {
+    if (!state.sid) return;
+    if (state.editing){ hideSelbar(); updateEditPresence(); return; }
+    const s = selectionSegs();
+    if (s){ state.lastSel = s; showSelbar(s); setPresence({p:s.segs[0].p}); }
+    else { if (!$('#dlg').hidden) return; hideSelbar(); if (state.deferred) renderDoc(false); }
+  }, 120);
+});
+function placeNear(el, rect, below = true){
+  el.hidden = false;
+  const w = el.offsetWidth, h = el.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+  let top = below ? rect.bottom + 10 : rect.top - h - 10;
+  if (top + h > vh - 8) top = Math.max(8, rect.top - h - 10);
+  if (top < 8) top = Math.min(vh - h - 8, rect.bottom + 10);
+  let left = rect.left + rect.width / 2 - w / 2;
+  left = Math.max(8, Math.min(vw - w - 8, left));
+  el.style.top = top + 'px'; el.style.left = left + 'px';
+}
+function showSelbar(s){
+  const bar = $('#selbar');
+  $('#sbErase').hidden = !overlapTakes(s.segs).length;
+  placeNear(bar, s.rect, true);
+}
+function hideSelbar(){ $('#selbar').hidden = true; }
+$('#selbar').addEventListener('pointerdown', e => e.preventDefault());
+$('#selbar').addEventListener('mousedown', e => e.preventDefault());
+$('#selbar').addEventListener('click', e => {
+  const b = e.target.closest('[data-sb]'); if (!b || !state.lastSel) return;
+  if (b.dataset.sb === 'take') openTakeDlg(state.lastSel);
+  else if (b.dataset.sb === 'err') openErrDlg(state.lastSel);
+  else if (b.dataset.sb === 'list'){ const s = state.lastSel; hideSelbar(); ghost(s.range); openListPop({segs:s.segs}, s.rect); }
+});
+window.addEventListener('scroll', () => {
+  if (!$('#selbar').hidden && state.lastSel && hasLiveSelection()){ const s = selectionSegs(); if (s){ state.lastSel = s; showSelbar(s); } }
+  closeMpop();
+}, {passive:true});
+
+/* ghost highlight keeps the chosen text visible while typing in the dialog (like Docs) */
+function ghost(range){
+  try { if (window.CSS && CSS.highlights){ if (range) CSS.highlights.set('aigis-sel', new Highlight(range)); else CSS.highlights.delete('aigis-sel'); } } catch(_){}
+}
+
+/* ---------- take dialog ---------- */
+function suggestFile(){
+  let best = null;
+  for (const t of state.takes) if (t.file && (!best || (t.at || 0) > (best.at || 0))) best = t;
+  return nextFileName(best && best.file);
+}
+function closeDlg(){ $('#dlg').hidden = true; $('#dlg').innerHTML = ''; ghost(null); }
+function openTakeDlg(s){
+  if (!s) { toast('先に台本の文字を選択してください'); return; }
+  hideSelbar(); closeMpop();
+  const dlg = $('#dlg'); dlg.className = 'dlg';
+  const txt = segsText(s.segs);
+  dlg.innerHTML = `<h3><span class="u" style="font-weight:700;text-decoration:underline;text-decoration-thickness:2px;color:#0B57D0;font-family:Arial">U</span>テイクを記録</h3>
+    <div class="quote">${esc(clip(txt, 120))}</div>
+    <div class="field"><label for="dlgFile">SDカードのファイル名</label><input class="file" id="dlgFile" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" maxlength="60"></div>
+    <div class="sub">直前の記録の次の番号を入れています。Enter で記録、Esc でキャンセル。</div>
+    <div class="row"><button class="btn text" type="button" data-d="cancel">キャンセル</button><button class="btn primary" type="button" data-d="ok">記録</button></div>`;
+  ghost(s.range);
+  placeNear(dlg, s.rect, true);
+  const inp = $('#dlgFile'); inp.value = suggestFile(); inp.focus(); inp.select();
+  dlg.onclick = e => { const b = e.target.closest('[data-d]'); if (!b) return; if (b.dataset.d === 'ok') commitTake(s); else cancelDlg(); };
+  dlg.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing){ e.preventDefault(); commitTake(s); } if (e.key === 'Escape'){ e.preventDefault(); cancelDlg(); } };
+}
+function cancelDlg(){ closeDlg(); window.getSelection().removeAllRanges(); if (state.deferred) renderDoc(false); }
+function commitTake(s){
+  const file = normFile($('#dlgFile').value);
+  const data = {segs:s.segs, file, at:Date.now(), by:state.uid, dev:DEVICE};
+  const id = state.store.add(state.sid, 'takes', data);
+  pushUndo(`テイク ${file || '(ファイル名なし)'} の記録`, () => state.store.del(state.sid, 'takes', id));
+  closeDlg(); window.getSelection().removeAllRanges(); renderDoc(false);
+  toast(`${file || 'ファイル名なし'} を記録しました`, {action:'元に戻す', onAction: doUndo});
+}
+/* ---------- mistake dialog ---------- */
+function openErrDlg(s){
+  if (!s) { toast('先にセリフ間違いの部分を選択してください'); return; }
+  hideSelbar(); closeMpop();
+  const dlg = $('#dlg'); dlg.className = 'dlg err';
+  const ts = overlapTakes(s.segs).slice().reverse();
+  dlg.innerHTML = `<h3><span class="eicon" style="display:inline-grid;place-items:center;width:18px;height:18px;border-radius:4px;background:#D93025;color:#fff;font-size:10.5px;font-weight:700">誤</span>セリフ間違いを記録</h3>
+    <div class="quote">${esc(clip(segsText(s.segs), 120))}</div>
+    <div class="field"><label for="dlgSaid">実際に言った言葉・メモ</label><input id="dlgSaid" autocomplete="off" maxlength="200" placeholder="例: 引き取られました"></div>
+    <div class="field"><label for="dlgTake">どのテイクか</label><select id="dlgTake"><option value="">指定しない</option>${ts.map(t => `<option value="${esc(t.id)}">${esc(t.file || 'ファイル名なし')}(${fmtTime(t.at)})</option>`).join('')}</select></div>
+    <div class="row"><button class="btn text" type="button" data-d="cancel">キャンセル</button><button class="btn primary" type="button" data-d="ok">記録</button></div>`;
+  if (ts.length) $('#dlgTake').value = ts[0].id;
+  ghost(s.range); placeNear(dlg, s.rect, true); $('#dlgSaid').focus();
+  dlg.onclick = e => { const b = e.target.closest('[data-d]'); if (!b) return; if (b.dataset.d === 'ok') commitErr(s); else cancelDlg(); };
+  dlg.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing && e.target.tagName === 'INPUT'){ e.preventDefault(); commitErr(s); } if (e.key === 'Escape'){ e.preventDefault(); cancelDlg(); } };
+}
+function commitErr(s){
+  const data = {segs:s.segs, said:($('#dlgSaid').value || '').trim().slice(0, 200), takeId:$('#dlgTake').value || '', at:Date.now(), by:state.uid, dev:DEVICE};
+  const id = state.store.add(state.sid, 'errs', data);
+  pushUndo('セリフ間違いの記録', () => state.store.del(state.sid, 'errs', id));
+  closeDlg(); window.getSelection().removeAllRanges(); renderDoc(false);
+  toast('セリフ間違いを記録しました', {action:'元に戻す', onAction: doUndo});
+}
+/* 選択範囲の一番上の線(最後に重なったテイク)をその範囲だけ消す */
+function subtractSegs(segs, cut){
+  const out = [];
+  for (const a of segs){
+    const cs = cut.filter(c => c.p === a.p && c.s < a.e && c.e > a.s);
+    if (!cs.length){ out.push({...a}); continue; }
+    let pieces = [{...a}];
+    for (const c of cs){
+      const next = [];
+      for (const q of pieces){
+        if (c.e <= q.s || c.s >= q.e){ next.push(q); continue; }
+        if (c.s > q.s) next.push({p:q.p, s:q.s, e:c.s});
+        if (c.e < q.e) next.push({p:q.p, s:c.e, e:q.e});
+      }
+      pieces = next;
+    }
+    out.push(...pieces);
+  }
+  return out;
+}
+function eraseOne(s){
+  const ts = overlapTakes(s.segs); if (!ts.length) return;
+  const t = ts.reduce((a, b) => ((b.at || 0) > (a.at || 0) ? b : a));
+  const rest = subtractSegs(t.segs, s.segs);
+  const before = {...t}; delete before._pending; delete before.id;
+  if (!rest.length) state.store.del(state.sid, 'takes', t.id);
+  else state.store.update(state.sid, 'takes', t.id, {segs:rest});
+  pushUndo('線の取り消し', () => state.store.set(state.sid, 'takes', t.id, {...before, segs:t.segs}));
+  hideSelbar(); window.getSelection().removeAllRanges(); renderDoc(false);
+  toast(`${t.file || 'ファイル名なし'} の線を${rest.length ? '選択した部分だけ' : ''}消しました`, {action:'元に戻す', onAction: doUndo});
+}
+
+/* ---------- undo ---------- */
+function pushUndo(label, fn){ state.undo.push({label, fn}); if (state.undo.length > 50) state.undo.shift(); }
+function doUndo(){
+  const u = state.undo.pop();
+  if (!u){ toast('元に戻せる操作はありません'); return; }
+  u.fn(); toast(`元に戻しました: ${u.label}`);
+}
+
+/* ---------- click on underlined text → popover ---------- */
+function closeMpop(){ const m = $('#mpop'); if (!m.hidden && state.mpopAt && state.mpopAt.ctx.segs) ghost(null); m.hidden = true; m.innerHTML = ''; state.mpopAt = null; state.editFile = null; }
+function caretAt(x, y){
+  if (document.caretRangeFromPoint){ const r = document.caretRangeFromPoint(x, y); return r && {node:r.startContainer, off:r.startOffset}; }
+  if (document.caretPositionFromPoint){ const p = document.caretPositionFromPoint(x, y); return p && {node:p.offsetNode, off:p.offset}; }
+  return null;
+}
+/* ctx: {pid, off, band} = 線をクリック / {segs} = 選択範囲 */
+async function openListPop(ctx, rect){
+  let tk, er;
+  if (ctx.segs){ tk = overlapTakes(ctx.segs); er = state.errs.filter(m => m.segs.some(a => ctx.segs.some(b => a.p === b.p && a.s < b.e && a.e > b.s))); }
+  else {
+    const ix = state.mIdx.get(ctx.pid) || {t:[], e:[]};
+    tk = ctx.errOnly ? [] : ix.t.filter(r => r.s <= ctx.off && ctx.off < r.e).map(r => r.m);
+    er = ix.e.filter(r => r.s <= ctx.off && ctx.off < r.e).map(r => r.m);
+  }
+  if (!tk.length && !er.length){ if (ctx.segs) toast('選択した範囲にテイクはありません'); closeMpop(); return; }
+  await resolveProfiles([...tk, ...er].map(m => m.by));
+  state.mpopAt = {ctx, rect};
+  const inSel = t => ctx.segs && t.segs.every(a => ctx.segs.some(b => a.p === b.p && b.s <= a.s && a.e <= b.e));
+  const head = ctx.segs ? `選択した範囲のテイク ${tk.length}本` : `この部分のテイク ${tk.length}本${tk.length >= DONE_AT ? '(撮影完了)' : ''}`;
+  const m = $('#mpop');
+  m.innerHTML = (tk.length ? `<h4>${head}</h4>` + tk.map((t, i) => `
+    <div class="mrow${ctx.band === i ? ' hi' : ''}" data-mid="${esc(t.id)}">
+      <span class="sw" style="background:${takeColor(i)}"></span>
+      ${state.editFile === t.id ? `<input id="mpFile" value="${esc(t.file || '')}" aria-label="ファイル名を修正" autocapitalize="characters" spellcheck="false">` : `<span class="f${t.file ? '' : ' none'}">${esc(t.file || 'ファイル名なし')}</span>`}
+      <span class="acts">${state.editFile === t.id ? `<button class="btn small primary" type="button" data-m="save">保存</button>` : `<button class="btn small text" type="button" data-m="edit">修正</button><button class="btn small text danger" type="button" data-m="del">取り消す</button>`}</span>
+      <span class="tn">${i + 1}本目</span><span class="w">${esc(personName(t.by))} · ${esc(t.dev || '')} · ${t.at ? fmtTime(t.at) : ''}${t.editedAt ? ' · 修正済み' : ''} · 「${esc(clip(markText(t), 24))}」</span>
+      ${ctx.segs && !inSel(t) && state.editFile !== t.id ? `<button class="btn small text danger cut" type="button" data-m="cut">選択した部分だけ線を消す</button>` : ''}
+    </div>`).join('') : '') +
+    (er.length ? `<h4>セリフ間違い</h4>` + er.map(e => `
+    <div class="mrow err" data-eid="${esc(e.id)}">
+      <span class="sw" style="background:#D93025"></span>
+      <span class="f"><span class="wrong">${esc(clip(markText(e), 30))}</span>${e.said ? ` → <b>${esc(e.said)}</b>` : ''}</span>
+      <span class="acts"><button class="btn small text danger" type="button" data-m="edel">削除</button></span>
+      <span class="tn"></span><span class="w">${esc(personName(e.by))} · ${e.at ? fmtTime(e.at) : ''}${e.takeId ? ' · ' + esc((state.takes.find(t => t.id === e.takeId) || {}).file || '削除されたテイク') : ''}</span>
+    </div>`).join('') : '');
+  placeNear(m, rect, true);
+  const fi = $('#mpFile'); if (fi){ fi.focus(); fi.select(); }
+}
+$('#mpop').addEventListener('click', e => {
+  const b = e.target.closest('[data-m]'); if (!b) return;
+  const a = b.dataset.m, row = b.closest('[data-mid],[data-eid]');
+  if (a === 'edit'){ state.editFile = row.dataset.mid; reopenMpop(); }
+  else if (a === 'save') saveFileEdit();
+  else if (a === 'cut'){
+    const t = state.takes.find(x => x.id === row.dataset.mid); const ctx = state.mpopAt && state.mpopAt.ctx; if (!t || !ctx || !ctx.segs) return;
+    const keep = {...t}; delete keep._pending; delete keep.id;
+    const rest = subtractSegs(t.segs, ctx.segs);
+    if (!rest.length) state.store.del(state.sid, 'takes', t.id); else state.store.update(state.sid, 'takes', t.id, {segs:rest});
+    pushUndo('線の部分取り消し', () => state.store.set(state.sid, 'takes', t.id, keep));
+    toast(`${t.file || 'ファイル名なし'} の線を選択した部分だけ消しました`, {action:'元に戻す', onAction: doUndo});
+    setTimeout(reopenMpop, 30);
+  }
+  else if (a === 'del'){
+    const t = state.takes.find(x => x.id === row.dataset.mid); if (!t) return;
+    const keep = {...t}; delete keep._pending; delete keep.id;
+    state.store.del(state.sid, 'takes', t.id);
+    pushUndo('テイクの取り消し', () => state.store.set(state.sid, 'takes', t.id, keep));
+    toast(`${t.file || 'ファイル名なし'} の線を取り消しました`, {action:'元に戻す', onAction: doUndo});
+    setTimeout(reopenMpop, 30);
+  } else if (a === 'edel'){
+    const er = state.errs.find(x => x.id === row.dataset.eid); if (!er) return;
+    const keep = {...er}; delete keep._pending; delete keep.id;
+    state.store.del(state.sid, 'errs', er.id);
+    pushUndo('セリフ間違いの削除', () => state.store.set(state.sid, 'errs', er.id, keep));
+    toast('セリフ間違いを削除しました', {action:'元に戻す', onAction: doUndo});
+    setTimeout(reopenMpop, 30);
+  }
+});
+$('#mpop').addEventListener('keydown', e => { if (e.target.id === 'mpFile'){ if (e.key === 'Enter' && !e.isComposing){ e.preventDefault(); saveFileEdit(); } if (e.key === 'Escape'){ state.editFile = null; reopenMpop(); } } });
+function reopenMpop(){ const a = state.mpopAt; if (a) openListPop(a.ctx, a.rect); }
+function saveFileEdit(){
+  const id = state.editFile; state.editFile = null;
+  const t = state.takes.find(x => x.id === id); const v = normFile($('#mpFile') ? $('#mpFile').value : '');
+  if (t && v !== t.file){
+    const old = t.file;
+    state.store.update(state.sid, 'takes', id, {file:v, editedAt:Date.now(), editedBy:state.uid});
+    pushUndo('ファイル名の修正', () => state.store.update(state.sid, 'takes', id, {file:old}));
+  }
+  setTimeout(reopenMpop, 30);
+}
+document.addEventListener('mousedown', e => {
+  if (!$('#mpop').hidden && !e.target.closest('#mpop')) closeMpop();
+  if (!$('#dlg').hidden && !e.target.closest('#dlg') && !e.target.closest('#selbar')) closeDlg();
+});
+
+/* =====================================================================
+   Script view events
+   ===================================================================== */
+view.addEventListener('click', e => {
+  if (!state.sid) return;
+  const id = e.target.closest('button') && e.target.closest('button').id;
+  if (id === 'tbUndo') return doUndo();
+  if (id === 'tbTake') return openTakeDlg(selectionSegs() || null);
+  if (id === 'tbErr') return openErrDlg(selectionSegs() || null);
+  if (id === 'tbEdit') return setEditing(!state.editing);
+  if (id === 'tbNext') return gotoNext();
+  if (id === 'fsUp') return setFs(state.fs + 1);
+  if (id === 'fsDown') return setFs(state.fs - 1);
+  if (id === 'tbExport') return openExport();
+  if (id === 'histBtn'){ $('#hist').classList.toggle('open'); return; }
+  if (id === 'histClose'){ $('#hist').classList.remove('open'); return; }
+  if (id === 'addPara') return addParaEnd();
+  const hc = e.target.closest('[data-hid]');
+  if (hc){ jumpToMark(hc.dataset.hid); return; }
+  const pn = e.target.closest('#paper .p');
+  if (pn && !state.editing){
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) return;
+    const hit = hitTest(e);
+    if (!hit){ closeMpop(); return; }
+    openListPop(hit.ctx, {left:e.clientX - 1, right:e.clientX + 1, top:e.clientY - 12, bottom:e.clientY + 8, width:2});
+  }
+});
+let lastPointer = 'mouse';
+document.addEventListener('pointerdown', e => { lastPointer = e.pointerType || 'mouse'; }, true);
+/* 線(アンダーライン)の上を押したときだけ反応。セリフ間違いは赤い波線の文字を押したとき */
+function hitTest(e){
+  const sg = e.target.closest && e.target.closest('.sg'); if (!sg) return null;
+  const n = +sg.dataset.n || 0, isErr = sg.classList.contains('er');
+  const r = [...sg.getClientRects()].find(r => e.clientX >= r.left - 1 && e.clientX <= r.right + 1 && e.clientY >= r.top - 1 && e.clientY <= r.bottom + 1);
+  if (!r) return null;
+  const step = BAND + GAP, tol = lastPointer === 'touch' ? 12 : 3;
+  const bandTop = r.bottom - n * step - tol;
+  let mode = null;
+  if (n && e.clientY >= bandTop) mode = 'band';
+  else if (isErr && e.clientY >= r.bottom - n * step - r.height * 0.45) mode = 'err';
+  if (!mode) return null;
+  const c = caretAt(e.clientX, r.top + Math.min(8, r.height / 3)); if (!c) return null;
+  const pos = resolvePoint(c.node, c.off, false); if (!pos) return null;
+  const p = state.pById.get(pos.pid);
+  const ix = state.mIdx.get(pos.pid) || {t:[], e:[]};
+  let off = pos.off;
+  const covers = o => (mode === 'band' ? ix.t : ix.e).some(q => q.s <= o && o < q.e);
+  if (!covers(off) && off > 0 && covers(off - 1)) off -= 1;
+  if (off >= p.x.length) off = p.x.length - 1;
+  if (!covers(off)) return null;
+  const band = mode === 'band' ? Math.max(0, Math.min(n - 1, n - 1 - Math.floor(Math.max(0, r.bottom - e.clientY) / step))) : null;
+  return {ctx:{pid:pos.pid, off, band, errOnly: mode === 'err'}};
+}
+view.addEventListener('mousedown', e => { if (e.target.closest('.tbar button') && !state.editing) e.preventDefault(); });
+function jumpToMark(id){
+  const m = state.takes.find(t => t.id === id) || state.errs.find(t => t.id === id); if (!m || !m.segs.length) return;
+  const node = paper().querySelector(`.p[data-id="${m.segs[0].p}"]`); if (!node) return;
+  node.scrollIntoView({block:'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+  node.classList.remove('flash'); void node.offsetWidth; node.classList.add('flash');
+  $('#hist').classList.remove('open');
+}
+function gotoNext(){
+  const ps = state.paras.filter(p => p.inf.type === 'd' && state.pstat.get(p.id) !== 'done' && state.pstat.get(p.id));
+  if (!ps.length){ toast('未完了のセリフはありません。すべて撮影完了です。'); return; }
+  const next = ps.find(p => state.order.get(p.id) > state.cursor) || ps[0];
+  state.cursor = state.order.get(next.id);
+  const node = paper().querySelector(`.p[data-id="${next.id}"]`);
+  node.scrollIntoView({block:'center', behavior:'smooth'});
+  node.classList.remove('flash'); void node.offsetWidth; node.classList.add('flash');
+}
+function setFs(v){ state.fs = Math.max(13, Math.min(32, v)); lsSet('aigis.fs', state.fs); paper() && paper().style.setProperty('--fs', state.fs + 'px'); }
+document.addEventListener('keydown', e => {
+  if (!state.sid || $('#modalRoot').firstChild) return;
+  const mod = isMac ? e.metaKey : e.ctrlKey;
+  const inField = /^(input|select|textarea)$/i.test(e.target.tagName || '');
+  if (mod && !e.shiftKey && (e.key === 'u' || e.key === 'U') && !state.editing && !inField){ e.preventDefault(); openTakeDlg(selectionSegs()); return; }
+  if (mod && !e.shiftKey && (e.key === 'z' || e.key === 'Z') && !state.editing && !inField){ e.preventDefault(); doUndo(); return; }
+  if (e.key === 'Escape'){ closeMpop(); hideSelbar(); }
+});
+
+/* =====================================================================
+   Editing (書き換え)
+   ===================================================================== */
+const PLAIN = (() => { const d = document.createElement('div'); try { d.contentEditable = 'plaintext-only'; } catch(_){ return false; } return d.contentEditable === 'plaintext-only'; })();
+function setEditing(on){
+  if (!on) flushAllEdits();
+  state.editing = on;
+  window.getSelection().removeAllRanges(); hideSelbar(); closeMpop(); closeDlg();
+  $('#tbEdit').setAttribute('aria-pressed', String(on));
+  $('#editHint').hidden = !on; $('#addWrap').hidden = !on;
+  ['tbTake', 'tbErr'].forEach(id => $('#' + id).disabled = on);
+  paper().classList.toggle('editing', on);
+  paper().classList.toggle('blinking', state.blinkOn && !on);
+  renderDoc(true);
+  setPresence({edit:null});
+}
+function caretOffset(pt){
+  const sel = window.getSelection(); if (!pt || !sel.rangeCount || !pt.contains(sel.focusNode)) return 0;
+  return textOffset(pt, sel.focusNode, sel.focusOffset);
+}
+function setCaret(pt, off){
+  const walker = document.createTreeWalker(pt, NodeFilter.SHOW_TEXT);
+  let n, left = off;
+  while ((n = walker.nextNode())){ if (left <= n.length){ const r = document.createRange(); r.setStart(n, left); r.collapse(true); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); return; } left -= n.length; }
+  const r = document.createRange(); r.selectNodeContents(pt); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+}
+const readPt = pt => pt.textContent;
+function updateEditPresence(){
+  const a = document.activeElement; const pn = a && a.closest && a.closest('#paper .p');
+  const pid = pn ? pn.dataset.id : null;
+  if (pid !== state.editPid){ state.editPid = pid; setPresence({edit:pid}); }
+}
+/* 文字の変更に合わせて、線とセリフ間違いの位置をずらす */
+function diffMapper(a, b){
+  let p = 0; while (p < a.length && p < b.length && a[p] === b[p]) p++;
+  let q = 0; while (q < a.length - p && q < b.length - p && a[a.length - 1 - q] === b[b.length - 1 - q]) q++;
+  const delta = b.length - a.length;
+  return i => i <= p ? i : (i >= a.length - q ? i + delta : p + Math.min(i - p, b.length - q - p));
+}
+function rewriteMarks(fn){
+  for (const [col, list] of [['takes', state.takes], ['errs', state.errs]]){
+    for (const m of list){
+      if (!m.segs.some(s => fn.touches(s))) continue;
+      const segs = m.segs.flatMap(s => fn.touches(s) ? fn.map(s) : [s]).filter(s => s.e > s.s);
+      if (!segs.length) state.store.del(state.sid, col, m.id);
+      else state.store.update(state.sid, col, m.id, {segs});
+    }
+  }
+}
+function writePara(p, x, extra = {}){
+  state.store.set(state.sid, 'paras', p.id, {o:p.o, x, at:Date.now(), by:state.uid, ...extra});
+}
+function savePara(pid, text){
+  const p = state.pById.get(pid); if (!p || p.x === text) return;
+  const f = diffMapper(p.x, text);
+  rewriteMarks({touches: s => s.p === pid, map: s => [{p:pid, s:f(s.s), e:f(s.e)}]});
+  writePara(p, text);
+}
+function flushEdit(pid){
+  clearTimeout(state.saveTimers.get(pid)); state.saveTimers.delete(pid);
+  const pt = paper() && paper().querySelector(`.p[data-id="${pid}"] .pt`);
+  if (pt && state.editing) savePara(pid, readPt(pt));
+}
+function flushAllEdits(){ [...state.saveTimers.keys()].forEach(flushEdit); }
+/* キャレット位置 c で段落を分ける / 複数行を貼り付ける */
+function splitInsert(pid, c, lines){
+  flushEdit(pid);
+  const p = state.pById.get(pid); if (!p) return;
+  const i = state.order.get(pid), next = state.paras[i + 1];
+  const before = p.x.slice(0, c), after = p.x.slice(c);
+  const n = lines.length;
+  const hiO = next ? next.o : p.o + 1024 * n;
+  const ids = [pid, ...Array.from({length:n - 1}, () => 'p' + newId())];
+  const texts = lines.map((l, k) => (k === 0 ? before : '') + l + (k === n - 1 ? after : ''));
+  const lastId = ids[n - 1], shift = lines[n - 1].length - c;
+  rewriteMarks({touches: s => s.p === pid && s.e > c,
+    map: s => s.s >= c ? [{p:lastId, s:s.s + shift, e:s.e + shift}] : [{p:pid, s:s.s, e:c}, {p:lastId, s:lines[n - 1].length, e:s.e + shift}]});
+  state.focusReq = {id:lastId, off:lines[n - 1].length};
+  writePara(p, texts[0]);
+  for (let k = 1; k < n; k++) state.store.set(state.sid, 'paras', ids[k], {o:p.o + (hiO - p.o) * k / n, x:texts[k], at:Date.now(), by:state.uid});
+}
+function mergeUp(pid){
+  flushEdit(pid);
+  const i = state.order.get(pid); if (!i) return;
+  const prev = state.paras[i - 1], cur = state.paras[i];
+  flushEdit(prev.id);
+  const L = prev.x.length;
+  state.focusReq = {id:prev.id, off:L};
+  rewriteMarks({touches: s => s.p === cur.id, map: s => [{p:prev.id, s:s.s + L, e:s.e + L}]});
+  writePara(prev, prev.x + cur.x);
+  writePara(cur, '', {del:true});
+  state.focusReq = {id:prev.id, off:L};
+  renderDoc(false);
+}
+function addParaEnd(){
+  const last = state.paras[state.paras.length - 1];
+  const id = 'p' + newId();
+  state.focusReq = {id, off:0};
+  state.store.set(state.sid, 'paras', id, {o:(last ? last.o : 0) + 1024, x:'', at:Date.now(), by:state.uid});
+}
+view.addEventListener('input', e => {
+  if (!state.editing) return;
+  const pn = e.target.closest && e.target.closest('#paper .p'); if (!pn) return;
+  const pid = pn.dataset.id;
+  clearTimeout(state.saveTimers.get(pid));
+  state.saveTimers.set(pid, setTimeout(() => flushEdit(pid), 700));
+});
+view.addEventListener('focusout', e => {
+  if (!state.editing) return;
+  const pn = e.target.closest && e.target.closest('#paper .p'); if (pn) flushEdit(pn.dataset.id);
+});
+view.addEventListener('focusin', () => { if (state.editing) updateEditPresence(); });
+view.addEventListener('keydown', e => {
+  if (!state.editing) return;
+  const pt = e.target.closest && e.target.closest('#paper .pt'); if (!pt) return;
+  if (e.isComposing || e.keyCode === 229) return;
+  const pid = pt.parentElement.dataset.id, sel = window.getSelection();
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    if (!sel.isCollapsed) document.execCommand('delete');
+    splitInsert(pid, caretOffset(pt), ['', '']);
+  } else if (e.key === 'Backspace' && sel.isCollapsed && caretOffset(pt) === 0 && state.order.get(pid) > 0){
+    e.preventDefault(); mergeUp(pid);
+  } else if (e.key === 'Delete' && sel.isCollapsed && caretOffset(pt) === readPt(pt).length){
+    const nx = state.paras[state.order.get(pid) + 1]; if (nx){ e.preventDefault(); flushEdit(pid); mergeUp(nx.id); }
+  }
+});
+view.addEventListener('paste', e => {
+  if (!state.editing) return;
+  const pt = e.target.closest && e.target.closest('#paper .pt'); if (!pt) return;
+  e.preventDefault();
+  const text = ((e.clipboardData || window.clipboardData).getData('text/plain') || '').replace(/\r\n?/g, '\n');
+  if (!window.getSelection().isCollapsed) document.execCommand('delete');
+  if (!text.includes('\n')){ document.execCommand('insertText', false, text); return; }
+  splitInsert(pt.parentElement.dataset.id, caretOffset(pt), text.split('\n'));
+});
+
+/* ---------- title & export ---------- */
+$('#titleIn').addEventListener('change', async e => {
+  const v = e.target.value.trim().slice(0, 80);
+  if (!state.sid || !v || v === state.meta.title) return;
+  try { await state.store.updateScript(state.sid, {title:v}); } catch(_){ toast('タイトルを保存できませんでした', {err:true}); }
+});
+$('#titleIn').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); e.target.blur(); } });
+function buildCSV(){
+  const q = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
+  const rows = [['行', 'シーン', '役名', 'セリフ', '状態', '最少テイク数', 'ファイル名', 'セリフ間違い'].map(q).join(',')];
+  for (const p of state.paras){
+    if (p.inf.type !== 'd') continue;
+    const {cov} = coverage(p);
+    let min = Infinity; for (let i = p.inf.d0; i < p.x.length; i++) if (countable(p, i)) min = Math.min(min, cov[i]);
+    const ix = state.mIdx.get(p.id) || {t:[], e:[]};
+    const files = [...new Set(ix.t.map(r => r.m.file || '(なし)'))];
+    const errs = ix.e.map(r => `${p.x.slice(r.s, r.e)}${r.m.said ? '→' + r.m.said : ''}`);
+    rows.push([p.no, p.scene, p.inf.sp, p.x.slice(p.inf.d0).replace(/\n/g, ' '), {done:'撮影完了', part:'途中', none:'未撮影'}[state.pstat.get(p.id)] || '', min === Infinity ? '' : min, files.join(' '), errs.join(' / ')].map(q).join(','));
+  }
+  return rows.join('\n');
+}
+function openExport(){
+  const csv = buildCSV(), txt = state.paras.map(p => p.x).join('\n');
+  const m = openModal(`<header><h2>書き出し</h2><p>${esc(state.meta.title)}</p></header>
+    <div class="body">
+      <div class="field"><label for="csv">撮影記録(CSV)— 表計算ソフトに貼り付けできます</label><textarea class="csvbox" id="csv" readonly></textarea></div>
+      <div class="field"><label for="stxt">現在の台本テキスト(書き換え後)</label><textarea class="csvbox" id="stxt" readonly></textarea></div>
+    </div>
+    <footer><button class="btn text" type="button" id="mClose">閉じる</button><button class="btn" type="button" id="mCopyT">台本をコピー</button><button class="btn primary" type="button" id="mCopy">CSVをコピー</button></footer>`);
+  $('#csv', m).value = csv; $('#stxt', m).value = txt;
+  $('#mClose', m).onclick = closeModal;
+  const copy = async (v, ta) => { try { await navigator.clipboard.writeText(v); toast('コピーしました'); } catch(_){ ta.focus(); ta.select(); toast('自動でコピーできないため選択しました。コピーしてください。'); } };
+  $('#mCopy', m).onclick = () => copy(csv, $('#csv', m));
+  $('#mCopyT', m).onclick = () => copy(txt, $('#stxt', m));
+}
+
+/* ---------- remote activity ---------- */
+async function announce(changes, col){
+  if (!changes || !changes.length || col === 'paras') return;
+  const docs = changes.map(c => c.doc).filter(Boolean);
+  await resolveProfiles(docs.map(d => d.by));
+  for (const c of changes.slice(0, 2)){
+    const m = normMark(c.doc || {}, col); const s = m.segs && m.segs[0];
+    const who = personName(m.by);
+    const what = col === 'takes' ? (c.type === 'added' ? `${m.file || 'ファイル名なし'} を記録` : c.type === 'removed' ? 'テイクを取り消し' : 'テイクを修正') : (c.type === 'removed' ? 'セリフ間違いを削除' : 'セリフ間違いを記録');
+    if (s){ const node = paper() && paper().querySelector(`.p[data-id="${s.p}"]`); if (node){ node.classList.remove('flash'); void node.offsetWidth; node.classList.add('flash'); } }
+    toast(`${who}が${what}`, s ? {action:'見る', onAction: () => { const node = paper().querySelector(`.p[data-id="${s.p}"]`); node && node.scrollIntoView({block:'center', behavior:'smooth'}); }} : {});
+  }
+}
+
+/* =====================================================================
+   Firebase backend (独立したURLで配布するとき)
+   FIREBASE_CONFIG に Firebase コンソールの設定値を貼ると、アカウント不要で
+   誰でも開いて編集できるモードで動く。null のときは claude.ai 上で動く。
+   ===================================================================== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC1l2tv5_pu16lUu036VdtGqGPF2QxCXYo",
+  authDomain: "aigis-script.firebaseapp.com",
+  databaseURL: "https://aigis-script-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "aigis-script",
+  storageBucket: "aigis-script.firebasestorage.app",
+  messagingSenderId: "336197933105",
+  appId: "1:336197933105:web:552f32dc6fb82afa279d10"
+};
+const FB_VER = '10.12.2';
+function avatarFor(name, color){
+  const ch = esc((name || '?').trim().slice(0, 1) || '?');
+  return 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="${color}"/><text x="16" y="21.5" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="700" fill="#fff">${ch}</text></svg>`);
+}
+function colorFor(id){ let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return `hsl(${h % 360},55%,45%)`; }
+async function firebaseBackend(cfg){
+  const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
+  const [A, AU, FS, RT] = await Promise.all(['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js', 'firebase-database.js'].map(f => import(base + f)));
+  const app = A.initializeApp(cfg);
+  const auth = AU.getAuth(app);
+  const uid = await new Promise((res, rej) => {
+    const un = AU.onAuthStateChanged(auth, u => { if (u){ un(); res(u.uid); } });
+    AU.signInAnonymously(auth).catch(e => { un(); rej(e); });
+  });
+  let fdb;
+  try { fdb = FS.initializeFirestore(app, {localCache: FS.persistentLocalCache({tabManager: FS.persistentMultipleTabManager()})}); }
+  catch(_){ fdb = FS.getFirestore(app); }
+  const snapDoc = d => ({id:d.id, exists:d.exists(), data:() => d.data(), metadata:d.metadata});
+  const docRef = path => { const r = FS.doc(fdb, path); return {
+    id:r.id, path, get:() => FS.getDoc(r).then(snapDoc), set:d => FS.setDoc(r, d), update:d => FS.updateDoc(r, d), delete:() => FS.deleteDoc(r),
+    onSnapshot:(n, e) => FS.onSnapshot(r, d => n(snapDoc(d)), e) }; };
+  const colRef = (path, q = []) => { const c = FS.collection(fdb, path); const build = () => q.length ? FS.query(c, ...q) : c; return {
+    path, orderBy:(f, d) => colRef(path, [...q, FS.orderBy(f, d || 'asc')]), where:(f, o, v) => colRef(path, [...q, FS.where(f, o, v)]),
+    get:() => FS.getDocs(build()), onSnapshot:(n, e) => FS.onSnapshot(build(), n, e), doc:id => docRef(path + '/' + id) }; };
+  const db = {doc:docRef, collection:colRef};
+
+  /* 名前(アカウントの代わり) */
+  const users = new Map();
+  FS.onSnapshot(FS.collection(fdb, 'users'), s => {
+    s.docs.forEach(d => users.set(d.id, d.data()));
+    state.profiles = {}; if (state.sid){ renderHist(); } else renderHome(); renderPeers();
+  }, () => {});
+  const prof = id => { const u = users.get(id) || {}; const color = colorFor(id); return {id, name:u.name || '', color, avatarUrl:avatarFor(u.name, color), isMe:id === uid}; };
+  const user = {
+    id: async () => uid, me: async () => prof(uid), profiles: async ids => Object.fromEntries([].concat(ids).map(id => [id, prof(id)])),
+    setName: name => FS.setDoc(FS.doc(fdb, 'users/' + uid), {name, at:Date.now()}, {merge:true}),
+  };
+
+  /* 参加者(Realtime Database: 読み書き回数の無料枠を使わない) */
+  const rdb = RT.getDatabase(app);
+  const connId = 'c' + newId();
+  const myRef = RT.ref(rdb, 'presence/' + connId);
+  let mine = {}, peers = [], connected = false;
+  const peerCbs = new Set(), connCbs = new Set();
+  const push = () => { if (connected) RT.set(myRef, {...mine, uid, at:RT.serverTimestamp()}).catch(() => {}); };
+  RT.onValue(RT.ref(rdb, '.info/connected'), s => {
+    connected = !!s.val();
+    if (connected){ RT.onDisconnect(myRef).remove(); push(); }
+    connCbs.forEach(f => f(connected));
+  });
+  RT.onValue(RT.ref(rdb, 'presence'), s => {
+    const v = s.val() || {}, now = Date.now();
+    peers = Object.entries(v).filter(([, p]) => p && now - (p.at || 0) < 8 * 60 * 1000 || 0).map(([k, p]) => ({
+      peer:k, by:p.uid || null, isMe:p.uid === uid, sameTab:k === connId, kind:'viewer', guest:false, presence:p, updatedAt:p.at || now}));
+    if (!peers.some(p => p.sameTab)) peers.push({peer:connId, by:uid, isMe:true, sameTab:true, kind:'viewer', guest:false, presence:{...mine, uid}, updatedAt:now});
+    peerCbs.forEach(f => f({peers}));
+  }, () => {});
+  const room = {
+    presence: async patch => { for (const [k, v] of Object.entries(patch)){ if (v === null || v === undefined) delete mine[k]; else mine[k] = v; } push(); },
+    peers: () => peers,
+    onPeers: (f) => { peerCbs.add(f); return () => peerCbs.delete(f); },
+    onConnection: f => { connCbs.add(f); setTimeout(() => f(connected)); return () => connCbs.delete(f); },
+  };
+  return {db, user, room, uid};
+}
+function firebaseErrorMsg(e){
+  const c = (e && e.code) || '';
+  if (c === 'auth/operation-not-allowed' || c === 'auth/admin-restricted-operation') return 'Firebase の「匿名」ログインが有効になっていません。Firebase コンソールの Authentication で「匿名」を有効にしてください。';
+  if (c.startsWith('auth/')) return 'Firebase にログインできませんでした(' + c + ')。';
+  return 'Firebase に接続できませんでした。通信状態を確認してください。この端末だけで記録します。';
+}
+function askName(force){
+  const cur = lsGet('aigis.name', '');
+  if (cur && !force) return;
+  const m = openModal(`<header><h2>あなたの名前</h2><p>記録した人として、ほかの参加者の画面に表示されます。</p></header>
+    <div class="body"><div class="field"><label for="nmIn">名前(例: 山田・スクリプター)</label><input type="text" id="nmIn" maxlength="30" autocomplete="name"></div></div>
+    <footer><button class="btn primary" type="button" id="nmOk">決定</button></footer>`);
+  const inp = $('#nmIn', m); inp.value = cur; inp.focus();
+  const ok = async () => {
+    const v = inp.value.trim().slice(0, 30); if (!v){ inp.focus(); return; }
+    lsSet('aigis.name', v); closeModal();
+    try { await state.user.setName(v); } catch(_){}
+  };
+  $('#nmOk', m).onclick = ok;
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing){ e.preventDefault(); ok(); } });
+  m.parentElement.onmousedown = null;
+}
+
+/* =====================================================================
+   Routing & boot
+   ===================================================================== */
+function route(){ const m = /^script-([a-z0-9]+)$/.exec(location.hash.slice(1)); if (m) safeOpen(m[1]); else showHome(); }
+window.addEventListener('hashchange', route);
+function goHome(){ if (state.editing) flushAllEdits(); try { if (location.hash) location.hash = ''; } catch(_){} if (state.sid) showHome(); else renderHome(); }
+$('#homeLink').addEventListener('click', e => { e.preventDefault(); goHome(); });
+document.addEventListener('click', e => { const a = e.target.closest('a.btn[href="#"]'); if (a){ e.preventDefault(); goHome(); } });
+window.addEventListener('beforeunload', () => { if (state.editing) flushAllEdits(); });
+
+function use(name){
+  const c = window.claude;
+  if (!c || typeof c.use !== 'function') return Promise.resolve(null);
+  return Promise.race([c.use(name).catch(() => null), sleep(10000).then(() => null)]);
+}
+async function boot(){
+  renderSync();
+  let db = null, user = null, room = null;
+  if (FIREBASE_CONFIG){
+    try { ({db, user, room} = await firebaseBackend(FIREBASE_CONFIG)); state.backend = 'firebase'; }
+    catch(e){ console.error(e); toast(firebaseErrorMsg(e), {err:true, ms:20000}); }
+  } else {
+    [db, user, room] = await Promise.all([use('db'), use('user'), use('room')]);
+  }
+  state.user = user;
+  if (user){ try { state.uid = await user.id(); } catch(_){} }
+  if (state.backend === 'firebase'){
+    const nm = lsGet('aigis.name', '');
+    if (nm) user.setName(nm).catch(() => {}); else askName(true);
+  }
+  state.store = db ? CloudStore(db) : LocalStore();
+  if (state.store.mode === 'cloud'){
+    state.store.onPendingChange = renderSync;
+    state.store.onWriteRefused = code => {
+      if (code === 'invalid_argument' || code === 'permission-denied') toast('保存できませんでした。この台本を編集する権限がありません。', {err:true, ms:9000});
+      else if (code === 'quota_exceeded') toast('保存容量の上限に達しました。古い台本を削除してください。', {err:true, ms:8000});
+      else if (code === 'resource-exhausted') toast('今日の無料枠の上限に達したため保存できませんでした。日本時間の夕方(太平洋時間の0時)に回復します。', {err:true, ms:15000});
+      else if (code === 'not-found') {}
+      else toast('保存できませんでした。', {err:true});
+    };
+  }
+  const scriptsTimer = setTimeout(() => { if (!state.scriptsReady){ state.scriptsReady = true; if (!state.sid) renderHome(); } }, 10000);
+  state.store.watchScripts((list, md) => {
+    if (!md || !md.fromCache || list.length){ state.scriptsReady = true; clearTimeout(scriptsTimer); }
+    state.scripts = list;
+    if (state.sid){
+      const m = list.find(s => s.id === state.sid);
+      if (m){ state.meta = m; const ti = $('#titleIn'); if (document.activeElement !== ti) ti.value = m.title; }
+      if (state.scriptsReady && !m && state.meta){ toast('この台本は削除されました'); goHome(); }
+    } else renderHome();
+  }, () => { state.scriptsReady = true; if (!state.sid) renderHome(); });
+  if (room){
+    state.room = room;
+    room.onPeers(() => renderPeers(), () => { state.room = null; $('#peers').hidden = true; });
+    room.onConnection(c => { state.roomOn = c; renderSync(); });
+    setPresence({sid:state.sid, t:Date.now()});
+    setInterval(() => setPresence({t:Date.now()}), 120000);
+  }
+  renderSync(); route();
+}
+
+const SAMPLE = `○ 宝石店「AIGIS」・店内(夜)
+   閉店間際。ショーケースの灯りだけが残っている。
+   ミオ(28)が駆け込んでくる。息が上がっている。
+ミオ「すみません、まだ大丈夫ですか」
+店主「ええ。……ああ、あなたでしたか」
+ミオ「預けていた指輪、受け取りに来ました」
+店主「それが、昨日のうちに引き取られていまして」
+ミオ「え……誰にですか」
+店主「婚約者の方だと。お名前は、アオイさん」
+   ミオ、言葉を失う。
+ミオ「そんなはずない。あの人とは、もう」
+店主「伝言を預かっています。『三丁目の歩道橋で待つ』と」
+
+○ 歩道橋の上(夜)
+   アオイ(30)が欄干にもたれている。手には小さな箱。
+   ミオが階段を駆け上がってくる。
+ミオ「どういうつもり」
+アオイ「来てくれると思わなかった」
+ミオ「返して。それは私が選んだ指輪よ」
+アオイ「知ってる。だから取りに行った」
+ミオ「別れようって言ったのは、あなたの方でしょう」
+アオイ「あの日、言えなかったことがある」
+   アオイ、箱を開ける。中は空っぽ。
+ミオ「……指輪は?」
+アオイ「店に置いてきた。サイズを直してもらってる」
+ミオ「なんで」
+アオイ「君の指、少し細くなったから」
+   ミオ、思わず左手を握りしめる。
+ミオ「ずるい。そういうところ、昔から」
+アオイ「明日の夜、もう一度あの店に来てほしい」
+
+○ 宝石店「AIGIS」・店内(翌日・夜)
+   ショーケースの前にミオとアオイ。店主が小箱を差し出す。
+店主「お待たせしました。ぴったりのはずです」
+ミオ「……本当に、ぴったり」
+アオイ「今度は、ちゃんと言うよ」
+ミオ「待って。私から言わせて」
+   二人、顔を見合わせて笑う。
+店主(M)「指輪は、帰る場所を知っている」`;
+
+boot();
+})();
+</script>
+</body>
+</html>
