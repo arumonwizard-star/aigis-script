@@ -988,7 +988,7 @@ async function openScript(sid){
   const ti = $('#titleIn'); ti.hidden = false; ti.value = meta.title;
   let base;
   try { base = await state.store.loadBase(sid); }
-  catch(e){ if (state.sid === sid) view.innerHTML = `<div class="loading">台本を読み込めませんでした。通信状態を確認して、もう一度開いてください。</div>`; return; }
+  catch(e){ if (state.sid === sid) view.innerHTML = `<div class="loading">台本を読み込めませんでした。通信状態を確認して、再度表示してください。</div>`; return; }
   if (state.sid !== sid) return;
   state.base = base.map(l => ({...l}));
   buildParas();
@@ -1026,7 +1026,7 @@ function renderShell(){
   </div>
   <div class="work">
     <div class="canvas">
-      <div class="edit-hint" id="editHint" hidden>編集中です。文字を直接書き換えられます。Enter で段落を分け、行頭で Backspace を押すと前の段落とつながります。終わったら「編集」をもう一度押してください。</div>
+      <div class="edit-hint" id="editHint" hidden>編集中です。文字を直接書き換えられます。Enter で段落を分け、行頭で Backspace を押すと前の段落とつながります。終わったら「編集」で終了します。</div>
       <div class="page"><div class="paper${state.blinkOn ? ' blinking' : ''}" id="paper" style="--fs:${state.fs}px"></div><div id="addWrap" hidden><button class="btn small addp" type="button" id="addPara">＋ 最後に段落を追加</button></div></div>
     </div>
     <aside class="hist" id="hist" aria-label="撮影履歴"></aside>
